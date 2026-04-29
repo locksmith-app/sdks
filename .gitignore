@@ -7,9 +7,9 @@ frontend/
 recent.txt
 skills-lock.json
 
-# Optional: keep product spec local only; remove lines below if you want them on GitHub
-# CLAUDE.md
-# PRODUCT.md
+# Long-form specs stay local (optional: delete these lines to track on GitHub)
+CLAUDE.md
+PRODUCT.md
 
 # ─── Secrets ─────────────────────────────────────────────────────────────────
 .env
