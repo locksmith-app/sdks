@@ -1,0 +1,58 @@
+# Pushes each sdks/<lang> to github.com/locksmith-app/sdk-<lang> using git subtree split.
+#
+# Setup:
+#   1. Create empty repos: sdk-typescript … sdk-swift (see README).
+#   2. Add org secret SDK_MIRROR_TOKEN: PAT (classic) with repo scope, access to all sdk-* repos.
+#
+name: Mirror SDK subtrees
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Branch on child repos to update'
+        required: true
+        default: main
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk:
+          - typescript
+          - python
+          - go
+          - rust
+          - ruby
+          - php
+          - dotnet
+          - java
+          - kotlin
+          - dart
+          - elixir
+          - swift
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Subtree split and push
+        env:
+          TOKEN: ${{ secrets.SDK_MIRROR_TOKEN }}
+          BRANCH: ${{ inputs.target_branch }}
+          SDK: ${{ matrix.sdk }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "Set repository org secret SDK_MIRROR_TOKEN (PAT with access to locksmith-app/sdk-* repos)."
+            exit 1
+          fi
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          REMOTE_URL="https://x-access-token:${TOKEN}@github.com/locksmith-app/sdk-${SDK}.git"
+          SPLIT="split/${SDK}-${GITHUB_RUN_ID}"
+          git subtree split -P "sdks/${SDK}" -b "${SPLIT}"
+          git push "${REMOTE_URL}" "${SPLIT}:${BRANCH}"
+          git branch -D "${SPLIT}"

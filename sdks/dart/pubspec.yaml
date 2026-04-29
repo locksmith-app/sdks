@@ -1,0 +1,8 @@
+name: locksmith_dart
+description: Dart client for the Locksmith public auth API
+version: 0.1.0
+environment:
+  sdk: ^3.5.0
+dependencies:
+  http: ^1.2.0
+  dart_jsonwebtoken: ^2.14.0

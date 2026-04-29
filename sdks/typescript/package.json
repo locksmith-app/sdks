@@ -1,0 +1,50 @@
+{
+  "name": "@locksmith/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript/JavaScript client for the Locksmith public auth API",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./adapters/next": {
+      "types": "./dist/adapters/next.d.ts",
+      "import": "./dist/adapters/next.js"
+    },
+    "./adapters/trpc": {
+      "types": "./dist/adapters/trpc.d.ts",
+      "import": "./dist/adapters/trpc.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.0.0",
+    "next": "^15.3.0",
+    "typescript": "^5.6.0"
+  },
+  "peerDependencies": {
+    "next": ">=14",
+    "@trpc/server": ">=11"
+  },
+  "peerDependenciesMeta": {
+    "next": { "optional": true },
+    "@trpc/server": { "optional": true }
+  }
+}

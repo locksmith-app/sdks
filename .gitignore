@@ -1,0 +1,67 @@
+# ─── This repo is SDKs only (org). Frontend lives in a separate account/repo. ─
+frontend/
+
+# ─── Local / IDE tooling (do not publish to org) ───────────────────────────────
+.claude/
+.agents/
+recent.txt
+skills-lock.json
+
+# Optional: keep product spec local only; remove lines below if you want them on GitHub
+# CLAUDE.md
+# PRODUCT.md
+
+# ─── Secrets ─────────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+
+# ─── Dependencies & build artifacts ──────────────────────────────────────────
+node_modules/
+**/node_modules/
+
+sdks/typescript/dist/
+
+sdks/rust/target/
+
+sdks/java/target/
+sdks/kotlin/.gradle/
+sdks/kotlin/build/
+
+sdks/dotnet/bin/
+sdks/dotnet/obj/
+
+sdks/php/vendor/
+
+sdks/elixir/_build/
+sdks/elixir/deps/
+
+.build/
+**/.build/
+**/DerivedData/
+
+sdks/dart/.dart_tool/
+sdks/dart/pubspec.lock
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+sdks/python/**/.eggs/
+sdks/python/**/*.egg-info/
+sdks/python/build/
+sdks/python/dist/
+
+sdks/ruby/pkg/
+sdks/ruby/.bundle/
+
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+*.log
+npm-debug.log*
+*.tsbuildinfo

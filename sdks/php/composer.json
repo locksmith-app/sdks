@@ -1,0 +1,16 @@
+{
+  "name": "locksmith/sdk-php",
+  "description": "PHP client for the Locksmith public auth API",
+  "type": "library",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.2",
+    "ext-json": "*",
+    "firebase/php-jwt": "^6.10"
+  },
+  "autoload": {
+    "psr-4": {
+      "Locksmith\\": "src/"
+    }
+  }
+}
