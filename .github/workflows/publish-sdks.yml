@@ -232,13 +232,15 @@ jobs:
             echo "::notice::Skipping RubyGems — add RUBYGEMS_API_KEY secret."
             exit 0
           fi
-          mkdir -p ~/.gem
-          printf '%s\n' '---' > ~/.gem/credentials
-          printf '%s\n' ":rubygems_api_key: ${RUBYGEMS_API_KEY}" >> ~/.gem/credentials
-          chmod 600 ~/.gem/credentials
+          # Use the HTTP API (guides.rubygems.org) so we never hit interactive gem sign-in / OTP.
+          # The `gem` CLI can still prompt for MFA even when an API key exists if it picks the wrong credentials path.
+          KEY="$(printf '%s' "$RUBYGEMS_API_KEY" | tr -d '\r\n[:space:]')"
           cd sdks/ruby
           gem build locksmith-ruby.gemspec
-          GEM_HOST_API_KEY="${RUBYGEMS_API_KEY}" gem push locksmith-ruby-*.gem --host https://rubygems.org
+          GEM_FILE="$(ls -t locksmith-ruby-*.gem | head -n1)"
+          curl -fsS --data-binary "@${GEM_FILE}" \
+            -H "Authorization:${KEY}" \
+            https://rubygems.org/api/v1/gems
 
   publish-nuget:
     name: Publish .NET (NuGet)
