@@ -28,6 +28,19 @@ Jobs **skip** when their secret is empty, so you can enable registries increment
 - **Java / Kotlin (Maven Central)** — Needs Sonatype namespace, GPG signing, and `distributionManagement` / Gradle `maven-publish`. The workflow only **build-verifies** those SDKs until you extend it.
 - **Swift** — Distributed via **Git + semver tags** on your Swift mirror repo, not a binary registry. The workflow runs `swift build` only.
 
+### Where workflows run
+
+Publishing workflows can live in a **private** clone used only for CI (so registry secrets stay off the public monorepo). Add a second remote locally (Git allows only one `origin` — use another name, e.g. `sdks-actions`):
+
+```bash
+git remote add sdks-actions https://github.com/CoyoteCodesAlot/locksmith-sdks-actions.git
+git push sdks-actions main
+```
+
+Authenticate with a **fine-grained PAT** or `gh auth login`; store **registry** tokens (`NPM_TOKEN`, `PYPI_API_TOKEN`, etc.) only under that repo’s **Settings → Secrets and variables → Actions**. **Never commit PATs or embed them in remote URLs** in tracked files.
+
+If a PAT was ever pasted into chat or committed, **revoke it** in GitHub → Settings → Developer settings → Tokens and create a new one.
+
 ### Before each release
 
 1. Bump the version in each SDK you are shipping (`package.json`, `pyproject.toml`, `Cargo.toml`, `version.rb`, `pubspec.yaml`, `.csproj`, `mix.exs`, and Composer tags as applicable).

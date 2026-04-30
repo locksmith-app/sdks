@@ -12,4 +12,8 @@ git remote add sdk-java      https://github.com/locksmith-app/sdk-java.git
 git remote add sdk-kotlin    https://github.com/locksmith-app/sdk-kotlin.git
 git remote add sdk-dart      https://github.com/locksmith-app/sdk-dart.git
 git remote add sdk-elixir    https://github.com/locksmith-app/sdk-elixir.git
-git remote add sdk-swift     https://github.com/locksmith-app/sdk-swift.git
+# Private GitHub Actions / publishing clone (Workflow runs here; add locally — not locksmith-app).
+# git remote add sdks-actions https://github.com/CoyoteCodesAlot/locksmith-sdks-actions.git
+# git push sdks-actions main
+# Use a PAT with repo access via Git Credential Manager or `gh auth login`; never commit tokens.
+
