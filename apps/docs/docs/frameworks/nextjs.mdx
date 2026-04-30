@@ -315,7 +315,18 @@ if (outcome === 'needs_totp') {
 
 ### Manual sign-in (`LocksmithBffClient`)
 
-Use **`bff.signIn`** + **`isSignInRequiresTotp`** from **`@getlocksmith/nextjs`**.
+```typescript
+import { LocksmithBffClient } from '@getlocksmith/nextjs/client'
+import { isSignInRequiresTotp } from '@getlocksmith/nextjs'
+
+const bff = new LocksmithBffClient({ routePrefix: '/api/locksmith' })
+const result = await bff.signIn(email, password)
+if (isSignInRequiresTotp(result)) {
+  /* POST .../totp with result.twoFactorToken + code */
+} else {
+  /* result.user — session cookies set by BFF */
+}
+```
 
 ---
 
@@ -401,11 +412,29 @@ See **`startOAuth`** / **`completeOAuthExchange`** in the **`useLocksmithAuth`**
 
 ### Manual OAuth (`LocksmithBffClient`)
 
-```typescript
-const { authorizationUrl } = await bff.initiateOAuth('github', 'https://myapp.com/auth/callback')
-window.location.href = authorizationUrl
+Use the same **`routePrefix`** as your BFF mount; optional **`origin`** if the browser calls another host (rare). All requests use **`credentials: 'include'`** so session cookies are sent on the callback exchange.
 
-// Callback page:
+**Start the flow** (e.g. button handler):
+
+```typescript
+import { LocksmithBffClient } from '@getlocksmith/nextjs/client'
+
+const bff = new LocksmithBffClient({ routePrefix: '/api/locksmith' })
+
+const { authorizationUrl } = await bff.initiateOAuth(
+  'github',
+  'https://myapp.com/auth/callback',
+)
+window.location.href = authorizationUrl
+```
+
+**Callback page** (after reading **`code`** from the query string — same `bff` options as above):
+
+```typescript
+import { LocksmithBffClient } from '@getlocksmith/nextjs/client'
+
+const bff = new LocksmithBffClient({ routePrefix: '/api/locksmith' })
+
 await bff.exchangeOAuthCode(code)
 ```
 
@@ -471,7 +500,20 @@ window.location.href = redirectUrl
 
 **Deny:** **`approved: false`**, no session required. **Allow:** user must have BFF session; **`scopes`** must include **`openid`**.
 
-**`LocksmithBffClient.oidcGrant`** — same body as BFF; send cookies when **`approved: true`**.
+**Without the provider** — instantiate **`LocksmithBffClient`** (same **`routePrefix`** as your BFF). **`oidcGrant`** uses `fetch` with **`credentials: 'include'`** so cookies are sent when **`approved: true`**:
+
+```typescript
+import { LocksmithBffClient } from '@getlocksmith/nextjs/client'
+
+const bff = new LocksmithBffClient({ routePrefix: '/api/locksmith' })
+
+const { redirectUrl } = await bff.oidcGrant({
+  requestToken,
+  approved: true,
+  scopes: ['openid', 'email'],
+})
+window.location.href = redirectUrl
+```
 
 ---
 
