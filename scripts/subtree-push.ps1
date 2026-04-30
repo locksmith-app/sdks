@@ -19,8 +19,12 @@ $sdks = Get-ChildItem -LiteralPath $sdkRoot -Directory | ForEach-Object { $_.Nam
 
 foreach ($dir in $sdks) {
   $remote = "sdk-$dir"
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = 'SilentlyContinue'
   $null = git remote get-url $remote 2>$null
-  if ($LASTEXITCODE -ne 0) {
+  $hasRemote = ($LASTEXITCODE -eq 0)
+  $ErrorActionPreference = $prevEap
+  if (-not $hasRemote) {
     Write-Warning "Skip sdks/${dir}: remote '$remote' not configured. Example: git remote add $remote https://github.com/locksmith-app/$remote.git"
     continue
   }
