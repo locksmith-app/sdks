@@ -1,6 +1,6 @@
 {
   "name": "@getlocksmith/nextjs",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Next.js integration for Locksmith: server client, auth routes, React provider, and UI",
   "license": "MIT",
   "type": "module",
