@@ -237,8 +237,18 @@ jobs:
           KEY="$(printf '%s' "$RUBYGEMS_API_KEY" | tr -d '\r\n[:space:]')"
           cd sdks/ruby
           gem build locksmith-ruby.gemspec
+          shopt -s nullglob
+          GEMS=(locksmith-ruby-*.gem)
+          if [ "${#GEMS[@]}" -eq 0 ]; then
+            echo "::error::No .gem file produced"
+            exit 1
+          fi
+          # Pick newest by mtime (handles multiple matches)
           GEM_FILE="$(ls -t locksmith-ruby-*.gem | head -n1)"
-          curl -fsS --data-binary "@${GEM_FILE}" \
+          # curl defaults to application/x-www-form-urlencoded for --data-binary, which can break gem parsing server-side
+          curl -sS --fail-with-body -X POST \
+            --data-binary "@${GEM_FILE}" \
+            -H "Content-Type: application/octet-stream" \
             -H "Authorization:${KEY}" \
             https://rubygems.org/api/v1/gems
 
