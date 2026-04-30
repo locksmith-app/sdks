@@ -9,6 +9,11 @@
  *   1) GITHUB_EVENT_NAME=release → version from RELEASE_TAG (strip leading v)
  *   2) SDK_VERSION_INPUT env non-empty → use as-is
  *   3) max(registry latest versions, sdks/SDK_VERSION) then bump (SDK_BUMP: patch|minor|major)
+ *
+ *   For each registry we collect **all** published versions (where the API allows), not only
+ *   `latest`, so an accidental 9.x release does not hide the real 1.x line. Then outliers:
+ *   if the highest **major** is ≥ 5 above the next lower major (e.g. 9 vs 1), that major line
+ *   is ignored. Use **sdk_version** or a **GitHub Release** tag to force an exact version.
  */
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -50,12 +55,6 @@ function cmpSemver(a, b) {
   return 0;
 }
 
-function maxSemver(versions) {
-  const norm = versions.map(normalizeSemver).filter(Boolean);
-  if (norm.length === 0) return null;
-  return norm.reduce((m, v) => (cmpSemver(v, m) > 0 ? v : m));
-}
-
 function bumpSemver(ver, kind) {
   const [x, y, z] = ver.split(".").map(Number);
   if (kind === "major") return `${x + 1}.0.0`;
@@ -70,90 +69,127 @@ function readCanonicalFile() {
   return normalizeSemver(line) ?? "0.1.0";
 }
 
-async function fetchLatestNpm() {
+async function fetchNpmVersionStrings() {
   const r = await fetch("https://registry.npmjs.org/@getlocksmith%2Fsdk");
-  if (!r.ok) return null;
+  if (!r.ok) return [];
   const j = await r.json();
-  return j["dist-tags"]?.latest ?? null;
+  return Object.keys(j.versions || {});
 }
 
-async function fetchLatestCratesIo() {
-  const r = await fetch("https://crates.io/api/v1/crates/getlocksmith", {
+async function fetchCratesIoVersionStrings() {
+  const r = await fetch("https://crates.io/api/v1/crates/getlocksmith/versions", {
     headers: { "User-Agent": "locksmith-sdk-publish-ci" },
   });
-  if (!r.ok) return null;
+  if (!r.ok) return [];
   const j = await r.json();
-  return j.crate?.max_stable_version ?? null;
+  return (j.versions || []).map((x) => x.num).filter(Boolean);
 }
 
-async function fetchLatestPyPI() {
+async function fetchPyPIVersionStrings() {
   const r = await fetch("https://pypi.org/pypi/locksmith-py/json");
-  if (!r.ok) return null;
+  if (!r.ok) return [];
   const j = await r.json();
-  return j.info?.version ?? null;
+  return Object.keys(j.releases || {});
 }
 
-async function fetchLatestRubyGems() {
-  const r = await fetch("https://rubygems.org/api/v1/gems/locksmith-ruby.json", {
-    headers: { "User-Agent": "locksmith-sdk-publish-ci" },
-  });
-  if (!r.ok) return null;
+async function fetchRubyGemsVersionStrings() {
+  const r = await fetch(
+    "https://rubygems.org/api/v1/versions/locksmith-ruby.json",
+    { headers: { "User-Agent": "locksmith-sdk-publish-ci" } },
+  );
+  if (!r.ok) return [];
   const j = await r.json();
-  return j.version ?? null;
+  if (!Array.isArray(j)) return [];
+  return j.map((x) => x.number).filter(Boolean);
 }
 
-async function fetchLatestNuGet() {
+async function fetchNuGetVersionStrings() {
   const r = await fetch(
     "https://api.nuget.org/v3-flatcontainer/locksmith.sdk/index.json",
   );
-  if (!r.ok) return null;
+  if (!r.ok) return [];
   const j = await r.json();
   const versions = j.versions;
-  if (!Array.isArray(versions) || versions.length === 0) return null;
-  return maxSemver(versions);
+  return Array.isArray(versions) ? versions : [];
 }
 
-async function fetchLatestPubDev() {
+async function fetchPubDevVersionStrings() {
   const r = await fetch("https://pub.dev/api/packages/locksmith_dart");
-  if (!r.ok) return null;
+  if (!r.ok) return [];
   const j = await r.json();
-  return j.latest?.version ?? null;
+  const latest = j.latest?.version ? [j.latest.version] : [];
+  const listed =
+    Array.isArray(j.versions) ? j.versions.map((x) => x.version).filter(Boolean) : [];
+  return [...new Set([...latest, ...listed])];
 }
 
-async function fetchLatestHex() {
+async function fetchHexVersionStrings() {
   const r = await fetch("https://hex.pm/api/packages/locksmith_ex");
-  if (!r.ok) return null;
+  if (!r.ok) return [];
   const j = await r.json();
   const releases = j.releases;
-  if (!Array.isArray(releases) || releases.length === 0) return null;
-  return maxSemver(releases.map((x) => x.version));
+  if (!Array.isArray(releases)) return [];
+  return releases.map((x) => x.version).filter(Boolean);
 }
 
-async function fetchLatestMavenCentral() {
+async function fetchMavenCentralVersionStrings() {
   const url =
     "https://search.maven.org/solr/search/select?q=g:app.locksmith+AND+a:locksmith-java&rows=1&wt=json";
   const r = await fetch(url, { headers: { "User-Agent": "locksmith-sdk-publish-ci" } });
-  if (!r.ok) return null;
+  if (!r.ok) return [];
   const j = await r.json();
   const v = j.response?.docs?.[0]?.latestVersion;
-  return v ?? null;
+  return v ? [v] : [];
+}
+
+function semverMajor(ver) {
+  return Number(ver.split(".")[0]);
+}
+
+/** Drop a runaway major line (e.g. accidental 9.x) when the next lower major is far below. */
+function maxSemverTrimOutliers(versions) {
+  const uniq = [...new Set(versions.map(normalizeSemver).filter(Boolean))];
+  if (uniq.length === 0) return null;
+
+  const byMajor = new Map();
+  for (const v of uniq) {
+    const m = semverMajor(v);
+    const cur = byMajor.get(m);
+    if (!cur || cmpSemver(v, cur) > 0) byMajor.set(m, v);
+  }
+
+  let majors = [...byMajor.keys()].sort((a, b) => a - b);
+  while (majors.length >= 2 && majors[majors.length - 1] - majors[majors.length - 2] >= 5) {
+    byMajor.delete(majors[majors.length - 1]);
+    majors = [...byMajor.keys()].sort((a, b) => a - b);
+  }
+
+  let best = null;
+  for (const v of byMajor.values()) {
+    if (!best || cmpSemver(v, best) > 0) best = v;
+  }
+  return best;
 }
 
 async function collectRegistryVersions() {
   const tasks = [
-    fetchLatestNpm(),
-    fetchLatestCratesIo(),
-    fetchLatestPyPI(),
-    fetchLatestRubyGems(),
-    fetchLatestNuGet(),
-    fetchLatestPubDev(),
-    fetchLatestHex(),
-    fetchLatestMavenCentral(),
+    fetchNpmVersionStrings(),
+    fetchCratesIoVersionStrings(),
+    fetchPyPIVersionStrings(),
+    fetchRubyGemsVersionStrings(),
+    fetchNuGetVersionStrings(),
+    fetchPubDevVersionStrings(),
+    fetchHexVersionStrings(),
+    fetchMavenCentralVersionStrings(),
   ];
   const results = await Promise.allSettled(tasks);
   const versions = [];
   for (const res of results) {
-    if (res.status === "fulfilled" && res.value) versions.push(res.value);
+    if (res.status === "fulfilled" && Array.isArray(res.value)) {
+      for (const v of res.value) {
+        if (v) versions.push(v);
+      }
+    }
   }
   return versions;
 }
@@ -179,7 +215,7 @@ async function resolveVersion() {
   const registry = await collectRegistryVersions();
   const canonical = readCanonicalFile();
   const candidates = [...registry, canonical];
-  const base = maxSemver(candidates);
+  const base = maxSemverTrimOutliers(candidates);
   if (!base) throw new Error("Could not resolve a base semver");
 
   if (bump !== "patch" && bump !== "minor" && bump !== "major") {
