@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:http/http.dart' as http;
 
-const _defaultBase = 'https://uselocksmith.app';
-const _issuer = 'https://uselocksmith.app';
+const _defaultBase = 'https://getlocksmith.dev';
+const _issuer = 'https://getlocksmith.dev';
 
 class LocksmithException implements Exception {
   LocksmithException(this.code, this.message, this.status);

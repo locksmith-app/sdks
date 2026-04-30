@@ -10,8 +10,8 @@ use stdClass;
 
 final class LocksmithClient
 {
-    private const DEFAULT_BASE = 'https://uselocksmith.app';
-    private const ISSUER = 'https://uselocksmith.app';
+    private const DEFAULT_BASE = 'https://getlocksmith.dev';
+    private const ISSUER = 'https://getlocksmith.dev';
 
     public readonly string $environment;
 

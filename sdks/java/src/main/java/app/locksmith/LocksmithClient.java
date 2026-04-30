@@ -21,8 +21,8 @@ import java.util.Map;
 /** Client for the public Locksmith <code>/api/auth/*</code> API. */
 public final class LocksmithClient implements AutoCloseable {
 
-  public static final String DEFAULT_BASE = "https://uselocksmith.app";
-  private static final String ISSUER = "https://uselocksmith.app";
+  public static final String DEFAULT_BASE = "https://getlocksmith.dev";
+  private static final String ISSUER = "https://getlocksmith.dev";
 
   private static final ObjectMapper JSON = new ObjectMapper();
 

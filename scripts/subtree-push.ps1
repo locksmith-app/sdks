@@ -12,12 +12,10 @@
 $ErrorActionPreference = 'Stop'
 $targetBranch = if ($env:TARGET_BRANCH) { $env:TARGET_BRANCH } else { 'main' }
 
-$sdks = @(
-  'typescript', 'python', 'go', 'rust', 'ruby', 'php',
-  'dotnet', 'java', 'kotlin', 'dart', 'elixir', 'swift'
-)
-
 Set-Location (Resolve-Path (Join-Path $PSScriptRoot '..'))
+$sdkRoot = Join-Path (Get-Location) 'sdks'
+if (-not (Test-Path $sdkRoot)) { throw "Missing sdks/ at $sdkRoot" }
+$sdks = Get-ChildItem -LiteralPath $sdkRoot -Directory | ForEach-Object { $_.Name } | Sort-Object
 
 foreach ($dir in $sdks) {
   $remote = "sdk-$dir"

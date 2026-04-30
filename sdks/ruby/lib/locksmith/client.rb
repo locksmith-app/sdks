@@ -6,8 +6,8 @@ require "uri"
 require "jwt"
 
 module Locksmith
-  DEFAULT_BASE = "https://uselocksmith.app"
-  ISSUER = "https://uselocksmith.app"
+  DEFAULT_BASE = "https://getlocksmith.dev"
+  ISSUER = "https://getlocksmith.dev"
 
   class Client
     attr_reader :api_key, :base_url, :environment

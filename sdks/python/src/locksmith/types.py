@@ -72,5 +72,5 @@ class TokenPayload(TypedDict, total=False):
     exp: int
 
 
-DEFAULT_BASE = "https://uselocksmith.app"
-ISSUER = "https://uselocksmith.app"
+DEFAULT_BASE = "https://getlocksmith.dev"
+ISSUER = "https://getlocksmith.dev"

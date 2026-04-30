@@ -1,6 +1,6 @@
 {
-  "name": "@locksmith/sdk",
-  "version": "0.1.0",
+  "name": "@getlocksmith/sdk",
+  "version": "1.0.0",
   "description": "TypeScript/JavaScript client for the Locksmith public auth API",
   "license": "MIT",
   "type": "module",
@@ -44,7 +44,11 @@
     "@trpc/server": ">=11"
   },
   "peerDependenciesMeta": {
-    "next": { "optional": true },
-    "@trpc/server": { "optional": true }
+    "next": {
+      "optional": true
+    },
+    "@trpc/server": {
+      "optional": true
+    }
   }
 }

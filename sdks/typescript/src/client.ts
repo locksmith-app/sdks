@@ -13,15 +13,15 @@ import type {
   UserMe,
 } from './types.js'
 
-const DEFAULT_BASE = 'https://uselocksmith.app'
-const ISSUER = 'https://uselocksmith.app'
+const DEFAULT_BASE = 'https://getlocksmith.dev'
+const ISSUER = 'https://getlocksmith.dev'
 
 type ApiSuccess<T> = { data: T }
 type ApiErr = { error: string; message: string }
 
 export type LocksmithClientOptions = {
   apiKey: string
-  /** Defaults to https://uselocksmith.app */
+  /** Defaults to https://getlocksmith.dev */
   baseUrl?: string
 }
 

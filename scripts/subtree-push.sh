@@ -6,7 +6,18 @@
 set -euo pipefail
 
 TARGET_BRANCH="${TARGET_BRANCH:-main}"
-SDKS=(typescript python go rust ruby php dotnet java kotlin dart elixir swift)
+shopt -s nullglob
+_sdk_dirs=(sdks/*/)
+SDKS=()
+for _d in "${_sdk_dirs[@]}"; do
+  SDKS+=("$(basename "${_d%/}")")
+done
+IFS=$'\n' SDKS=($(printf '%s\n' "${SDKS[@]}" | sort))
+unset IFS
+if [[ ${#SDKS[@]} -eq 0 ]]; then
+  echo "No subdirectories under sdks/" >&2
+  exit 1
+fi
 
 for dir in "${SDKS[@]}"; do
   remote="sdk-$dir"

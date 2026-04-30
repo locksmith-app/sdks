@@ -13,8 +13,8 @@ public struct LocksmithError: Error, Sendable {
 
 /// HTTP client for the Locksmith `/api/auth/*` API.
 public final class LocksmithClient: @unchecked Sendable {
-    public static let defaultBaseURL = "https://uselocksmith.app"
-    private static let issuer = "https://uselocksmith.app"
+    public static let defaultBaseURL = "https://getlocksmith.dev"
+    private static let issuer = "https://getlocksmith.dev"
 
     public let apiKey: String
     private let baseString: String

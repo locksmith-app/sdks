@@ -1,8 +1,8 @@
 defmodule Locksmith.Client do
   @moduledoc false
 
-  @default_base "https://uselocksmith.app"
-  @issuer "https://uselocksmith.app"
+  @default_base "https://getlocksmith.dev"
+  @issuer "https://getlocksmith.dev"
 
   defstruct [:api_key, :base_url, :environment]
 

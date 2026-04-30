@@ -37,8 +37,8 @@ public static class ApiKey
 
 public sealed class LocksmithClient : IDisposable
 {
-    public const string DefaultBaseUrl = "https://uselocksmith.app";
-    private const string Issuer = "https://uselocksmith.app";
+    public const string DefaultBaseUrl = "https://getlocksmith.dev";
+    private const string Issuer = "https://getlocksmith.dev";
 
     private readonly HttpClient _http;
     private readonly string _baseUrl;

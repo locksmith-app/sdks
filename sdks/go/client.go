@@ -12,8 +12,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const defaultBase = "https://uselocksmith.app"
-const issuer = "https://uselocksmith.app"
+const defaultBase = "https://getlocksmith.dev"
+const issuer = "https://getlocksmith.dev"
 
 // Environment is implied by the API key prefix (lsm_live_ / lsm_sbx_).
 type Environment string

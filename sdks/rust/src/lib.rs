@@ -3,8 +3,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-const DEFAULT_BASE: &str = "https://uselocksmith.app";
-const ISSUER: &str = "https://uselocksmith.app";
+const DEFAULT_BASE: &str = "https://getlocksmith.dev";
+const ISSUER: &str = "https://getlocksmith.dev";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

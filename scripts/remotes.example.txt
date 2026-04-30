@@ -1,7 +1,7 @@
 # Example remotes for `git subtree split` mirrors under github.com/locksmith-app.
 # Run from monorepo root after creating empty repos on GitHub.
 
-git remote add sdk-typescript https://github.com/locksmith-app/sdk-typescript.git
+# Omit sdk-typescript if you created it separately.
 git remote add sdk-python    https://github.com/locksmith-app/sdk-python.git
 git remote add sdk-go        https://github.com/locksmith-app/sdk-go.git
 git remote add sdk-rust      https://github.com/locksmith-app/sdk-rust.git

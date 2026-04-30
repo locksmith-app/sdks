@@ -30,8 +30,8 @@ class LocksmithClient(
     private val json = ObjectMapper().registerModule(kotlinModule())
 
     companion object {
-        const val DEFAULT_BASE = "https://uselocksmith.app"
-        private const val ISSUER = "https://uselocksmith.app"
+        const val DEFAULT_BASE = "https://getlocksmith.dev"
+        private const val ISSUER = "https://getlocksmith.dev"
 
         fun environmentFromApiKey(key: String): String = when {
             key.startsWith("lsm_live_") -> "production"

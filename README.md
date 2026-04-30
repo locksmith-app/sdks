@@ -1,6 +1,6 @@
 # Locksmith SDKs (organization monorepo)
 
-Official client libraries for the [Locksmith](https://uselocksmith.app) public auth API (`/api/auth/*`).
+Official client libraries for the [Locksmith](https://getlocksmith.dev) public auth API (`/api/auth/*`).
 
 The **dashboard / Next.js app is not in this repository**; it is developed and hosted under a separate GitHub account to keep org costs minimal.
 
@@ -25,7 +25,22 @@ The **dashboard / Next.js app is not in this repository**; it is developed and h
 
 This monorepo is the **source of truth**. Per-language repos under `https://github.com/locksmith-app` can be updated with `git subtree split` (history for that subtree only; the child repo root matches `sdks/<lang>`).
 
-**Prerequisite:** create empty GitHub repos, e.g. `locksmith-app/sdk-typescript`, `locksmith-app/sdk-go`, …
+**Prerequisite:** empty GitHub repos under `locksmith-app` (e.g. `sdk-go`, `sdk-python`, …). **`sdk-typescript` is not created** by the helper below (create it yourself or skip if you only use this monorepo for TS).
+
+### Create org repos automatically (except `sdk-typescript`)
+
+Requires [GitHub CLI](https://cli.github.com/) (`gh auth login` with org permission to create repositories).
+
+```powershell
+./scripts/create-sdk-repos.ps1
+```
+
+```bash
+chmod +x scripts/create-sdk-repos.sh
+./scripts/create-sdk-repos.sh
+```
+
+Optional: `GITHUB_ORG`, `SDK_REPO_VISIBILITY` (`public` / `private` / `internal`), `SKIP_EXISTING=0`.
 
 ### One-off push (from repo root, `main` checked out)
 
@@ -42,11 +57,11 @@ chmod +x scripts/subtree-push.sh
 ./scripts/subtree-push.sh
 ```
 
-Set remotes once (HTTPS example):
+Set remotes once (copy from `scripts/remotes.example.txt`; add `sdk-typescript` manually if you use that mirror).
 
 ```bash
-git remote add sdk-typescript https://github.com/locksmith-app/sdk-typescript.git
-# … repeat per scripts/remotes.example.txt
+git remote add sdk-python https://github.com/locksmith-app/sdk-python.git
+# … remaining remotes in scripts/remotes.example.txt
 ```
 
 The scripts default org URL: `https://github.com/locksmith-app`.
@@ -72,6 +87,8 @@ Each matrix job runs `git subtree split -P sdks/<lang>` and pushes to `locksmith
 ## Registry publishes (npm, crates.io, …)
 
 Run release automation in each **`sdk-*`** repo (tests + publish on tags). Subtree mirrors only sync source; registry credentials live in the per-language repository.
+
+**Full per-registry steps:** [sdks/PUBLISHING.md](sdks/PUBLISHING.md).
 
 ## License
 
