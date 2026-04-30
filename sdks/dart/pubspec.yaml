@@ -1,6 +1,9 @@
 name: locksmith_dart
 description: Dart client for the Locksmith public auth API
 version: 0.1.0
+homepage: https://getlocksmith.dev
+repository: https://github.com/locksmith-app/sdk-dart
+issue_tracker: https://github.com/locksmith-app/sdk-dart/issues
 environment:
   sdk: ^3.5.0
 dependencies:

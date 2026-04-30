@@ -1,3 +1,5 @@
+library locksmith_dart;
+
 import 'dart:convert';
 
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';

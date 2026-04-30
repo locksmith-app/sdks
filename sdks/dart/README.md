@@ -25,7 +25,7 @@ dart pub get
 ```dart
 import 'dart:io';
 
-import 'package:locksmith_dart/locksmith.dart';
+import 'package:locksmith_dart/locksmith_dart.dart';
 
 final c = LocksmithClient(apiKey: Platform.environment['LOCKSMITH_API_KEY']!);
 
