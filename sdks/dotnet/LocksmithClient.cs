@@ -186,4 +186,34 @@ public sealed class LocksmithClient : IDisposable
     {
         _ = await PostJsonAsync("/api/auth/password/update", new { token, newPassword }, ct).ConfigureAwait(false);
     }
+
+    public Task<JsonElement> InitiateOAuthAsync(string provider, string? redirectUrl = null, CancellationToken ct = default)
+    {
+        var body = new Dictionary<string, object?>();
+        if (!string.IsNullOrEmpty(redirectUrl))
+            body["redirectUrl"] = redirectUrl;
+        var enc = Uri.EscapeDataString(provider);
+        return PostJsonAsync($"/api/auth/oauth/{enc}", body, ct);
+    }
+
+    public Task<JsonElement> ExchangeOAuthCodeAsync(string code, CancellationToken ct = default) =>
+        PostJsonAsync("/api/auth/oauth/token", new { code }, ct);
+
+    public Task<JsonElement> CompleteOidcGrantAsync(
+        string requestToken,
+        bool approved,
+        string? userId = null,
+        string[]? scopes = null,
+        CancellationToken ct = default)
+    {
+        var dict = new Dictionary<string, object?> {
+            ["requestToken"] = requestToken,
+            ["approved"] = approved,
+        };
+        if (userId != null)
+            dict["userId"] = userId;
+        if (scopes is { Length: > 0 })
+            dict["scopes"] = scopes;
+        return PostJsonAsync("/api/auth/oidc/grant", dict, ct);
+    }
 }

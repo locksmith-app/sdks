@@ -143,3 +143,27 @@ class LocksmithClient:
             "/api/auth/password/update",
             json_body={"token": token, "newPassword": new_password},
         )
+
+    def initiate_oauth(self, *, provider: str, redirect_url: str | None = None) -> dict:
+        body: dict = {}
+        if redirect_url is not None:
+            body["redirectUrl"] = redirect_url
+        return self._request_json("POST", f"/api/auth/oauth/{provider}", json_body=body)
+
+    def exchange_oauth_code(self, code: str) -> dict:
+        return self._request_json("POST", "/api/auth/oauth/token", json_body={"code": code})
+
+    def complete_oidc_grant(
+        self,
+        *,
+        request_token: str,
+        approved: bool,
+        user_id: str | None = None,
+        scopes: list[str] | None = None,
+    ) -> dict:
+        body: dict = {"requestToken": request_token, "approved": approved}
+        if user_id is not None:
+            body["userId"] = user_id
+        if scopes is not None:
+            body["scopes"] = scopes
+        return self._request_json("POST", "/api/auth/oidc/grant", json_body=body)

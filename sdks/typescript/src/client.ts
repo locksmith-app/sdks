@@ -4,6 +4,9 @@ import { LocksmithError } from './errors.js'
 import type {
   AuthTokens,
   MagicLinkVerifyResult,
+  OAuthInitiateResult,
+  OAuthTokenExchangeResult,
+  OidcGrantResult,
   SignInResult,
   SignUpResult,
   TokenPayload,
@@ -169,6 +172,54 @@ export class LocksmithClient {
     await this.requestJson<{ success: true }>('/api/auth/password/update', {
       method: 'POST',
       body: JSON.stringify(params),
+    })
+  }
+
+  /**
+   * Start social OAuth sign-in. Redirect the end user's browser to `authorizationUrl`.
+   * The provider must be enabled in the dashboard for this project.
+   */
+  async initiateOAuth(params: {
+    provider: string
+    redirectUrl?: string | null
+  }): Promise<OAuthInitiateResult> {
+    const path = `/api/auth/oauth/${encodeURIComponent(params.provider)}`
+    const body =
+      params.redirectUrl !== undefined && params.redirectUrl !== null && params.redirectUrl !== ''
+        ? JSON.stringify({ redirectUrl: params.redirectUrl })
+        : JSON.stringify({})
+    return this.requestJson<OAuthInitiateResult>(path, { method: 'POST', body })
+  }
+
+  /**
+   * Exchange the OAuth `code` from your redirect URL for Locksmith session tokens.
+   * Call from your backend only (requires API key).
+   */
+  async exchangeOAuthCode(code: string): Promise<OAuthTokenExchangeResult> {
+    return this.requestJson<OAuthTokenExchangeResult>('/api/auth/oauth/token', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    })
+  }
+
+  /**
+   * Hosted SSO (OIDC): after `/authorize` sends the user to your login UI with `request_token`,
+   * call this from your backend to get the final browser `redirectUrl` (requires Pro plan).
+   */
+  async completeOidcGrant(params: {
+    requestToken: string
+    approved: boolean
+    userId?: string
+    scopes?: string[]
+  }): Promise<OidcGrantResult> {
+    return this.requestJson<OidcGrantResult>('/api/auth/oidc/grant', {
+      method: 'POST',
+      body: JSON.stringify({
+        requestToken: params.requestToken,
+        approved: params.approved,
+        ...(params.userId !== undefined ? { userId: params.userId } : {}),
+        ...(params.scopes !== undefined ? { scopes: params.scopes } : {}),
+      }),
     })
   }
 }

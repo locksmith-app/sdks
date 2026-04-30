@@ -112,6 +112,38 @@ pub struct MagicLinkVerifyResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OAuthInitiateResult {
+    pub provider: String,
+    pub authorization_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OAuthExchangeUser {
+    pub id: String,
+    pub email: String,
+    pub role: String,
+    pub meta: HashMap<String, serde_json::Value>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OAuthTokenExchangeResult {
+    pub user: OAuthExchangeUser,
+    #[serde(flatten)]
+    pub tokens: AuthTokens,
+    pub provider: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OidcGrantResult {
+    pub redirect_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TokenPayload {
     pub sub: String,
     pub email: String,
@@ -337,5 +369,61 @@ impl LocksmithClient {
             )
             .await?;
         Ok(())
+    }
+
+    pub async fn initiate_oauth(
+        &self,
+        provider: &str,
+        redirect_url: Option<&str>,
+    ) -> Result<OAuthInitiateResult> {
+        let path = format!(
+            "/api/auth/oauth/{}",
+            urlencoding::encode(provider)
+        );
+        let mut body = serde_json::Value::Object(serde_json::Map::new());
+        if let Some(u) = redirect_url.filter(|s| !s.is_empty()) {
+            body["redirectUrl"] = serde_json::Value::String(u.to_string());
+        }
+        self.request_json(
+            reqwest::Method::POST,
+            &path,
+            Some(body),
+            None,
+        )
+        .await
+    }
+
+    pub async fn exchange_oauth_code(&self, code: &str) -> Result<OAuthTokenExchangeResult> {
+        let body = serde_json::json!({ "code": code });
+        self.request_json(reqwest::Method::POST, "/api/auth/oauth/token", Some(body), None)
+            .await
+    }
+
+    pub async fn complete_oidc_grant(
+        &self,
+        request_token: &str,
+        approved: bool,
+        user_id: Option<&str>,
+        scopes: Option<&[String]>,
+    ) -> Result<OidcGrantResult> {
+        let mut body = serde_json::json!({
+            "requestToken": request_token,
+            "approved": approved,
+        });
+        if let Some(uid) = user_id {
+            body["userId"] = serde_json::Value::String(uid.to_string());
+        }
+        if let Some(s) = scopes {
+            if !s.is_empty() {
+                body["scopes"] = serde_json::to_value(s).unwrap_or(serde_json::json!([]));
+            }
+        }
+        self.request_json(
+            reqwest::Method::POST,
+            "/api/auth/oidc/grant",
+            Some(body),
+            None,
+        )
+        .await
     }
 }

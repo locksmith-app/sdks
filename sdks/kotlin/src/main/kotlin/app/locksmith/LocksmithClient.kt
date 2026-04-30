@@ -137,4 +137,34 @@ class LocksmithClient(
         val o = json.createObjectNode().put("token", token).put("newPassword", newPassword)
         post("/api/auth/password/update", o)
     }
+
+    fun initiateOAuth(provider: String, redirectUrl: String? = null): JsonNode {
+        val o = json.createObjectNode()
+        if (!redirectUrl.isNullOrBlank()) {
+            o.put("redirectUrl", redirectUrl)
+        }
+        val enc = URLEncoder.encode(provider, StandardCharsets.UTF_8).replace("+", "%20")
+        return post("/api/auth/oauth/$enc", o)
+    }
+
+    fun exchangeOAuthCode(code: String): JsonNode =
+        post("/api/auth/oauth/token", json.createObjectNode().put("code", code))
+
+    fun completeOidcGrant(
+        requestToken: String,
+        approved: Boolean,
+        userId: String? = null,
+        scopes: JsonNode? = null,
+    ): JsonNode {
+        val o = json.createObjectNode()
+            .put("requestToken", requestToken)
+            .put("approved", approved)
+        if (!userId.isNullOrBlank()) {
+            o.put("userId", userId)
+        }
+        if (scopes != null && scopes.isArray) {
+            o.replace("scopes", scopes)
+        }
+        return post("/api/auth/oidc/grant", o)
+    }
 }

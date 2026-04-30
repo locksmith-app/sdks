@@ -116,6 +116,49 @@ final class LocksmithClient
         ]);
     }
 
+    /** @return array<string, mixed> */
+    public function initiateOAuth(string $provider, ?string $redirectUrl = null): array
+    {
+        $path = '/api/auth/oauth/' . rawurlencode($provider);
+        $body = [];
+        if ($redirectUrl !== null) {
+            $body['redirectUrl'] = $redirectUrl;
+        }
+
+        return $this->post($path, $body);
+    }
+
+    /** @return array<string, mixed> */
+    public function exchangeOAuthCode(string $code): array
+    {
+        return $this->post('/api/auth/oauth/token', ['code' => $code]);
+    }
+
+    /**
+     * @param list<string>|null $scopes
+     *
+     * @return array<string, mixed>
+     */
+    public function completeOidcGrant(
+        string $requestToken,
+        bool $approved,
+        ?string $userId = null,
+        ?array $scopes = null,
+    ): array {
+        $body = [
+            'requestToken' => $requestToken,
+            'approved' => $approved,
+        ];
+        if ($userId !== null) {
+            $body['userId'] = $userId;
+        }
+        if ($scopes !== null) {
+            $body['scopes'] = $scopes;
+        }
+
+        return $this->post('/api/auth/oidc/grant', $body);
+    }
+
     /** @param array<string, mixed> $body */
     private function post(string $path, array $body): array
     {

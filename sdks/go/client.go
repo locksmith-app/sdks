@@ -327,3 +327,72 @@ func (c *LocksmithClient) UpdatePassword(token, newPassword string) error {
 		Success bool `json:"success"`
 	}{})
 }
+
+// InitiateOAuth returns the provider authorization URL; redirect the user's browser there.
+func (c *LocksmithClient) InitiateOAuth(provider string, redirectURL *string) (*struct {
+	Provider           string `json:"provider"`
+	AuthorizationURL   string `json:"authorizationUrl"`
+}, error) {
+	body := map[string]interface{}{}
+	if redirectURL != nil && *redirectURL != "" {
+		body["redirectUrl"] = *redirectURL
+	}
+	b, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		Provider           string `json:"provider"`
+		AuthorizationURL   string `json:"authorizationUrl"`
+	}
+	path := "/api/auth/oauth/" + url.PathEscape(provider)
+	if err := c.doJSON(http.MethodPost, path, strings.NewReader(string(b)), nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ExchangeOAuthCode redeems the OAuth exchange code for Locksmith tokens (server-side).
+func (c *LocksmithClient) ExchangeOAuthCode(code string) (*struct {
+	User         User `json:"user"`
+	AuthTokens
+	Provider string `json:"provider"`
+}, error) {
+	b, _ := json.Marshal(map[string]string{"code": code})
+	var result struct {
+		User     User   `json:"user"`
+		AuthTokens
+		Provider string `json:"provider"`
+	}
+	if err := c.doJSON(http.MethodPost, "/api/auth/oauth/token", strings.NewReader(string(b)), nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// CompleteOidcGrant completes hosted OIDC after login/consent (Pro). Returns the browser redirect URL.
+func (c *LocksmithClient) CompleteOidcGrant(requestToken string, approved bool, userID *string, scopes []string) (*struct {
+	RedirectURL string `json:"redirectUrl"`
+}, error) {
+	body := map[string]interface{}{
+		"requestToken": requestToken,
+		"approved":     approved,
+	}
+	if userID != nil {
+		body["userId"] = *userID
+	}
+	if len(scopes) > 0 {
+		body["scopes"] = scopes
+	}
+	b, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		RedirectURL string `json:"redirectUrl"`
+	}
+	if err := c.doJSON(http.MethodPost, "/api/auth/oidc/grant", strings.NewReader(string(b)), nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}

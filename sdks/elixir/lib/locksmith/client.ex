@@ -120,6 +120,40 @@ defmodule Locksmith.Client do
     :ok
   end
 
+  def initiate_oauth(%__MODULE__{} = c, provider, opts \\ []) do
+    body =
+      case Keyword.get(opts, :redirect_url) do
+        nil -> %{}
+        u -> %{"redirectUrl" => u}
+      end
+
+    path = "/api/auth/oauth/" <> URI.encode(provider, &URI.char_unreserved?/1)
+    post(c, path, body)
+  end
+
+  def exchange_oauth_code(%__MODULE__{} = c, code) do
+    post(c, "/api/auth/oauth/token", %{"code" => code})
+  end
+
+  def complete_oidc_grant(%__MODULE__{} = c, request_token, approved, opts \\ []) do
+    body =
+      %{
+        "requestToken" => request_token,
+        "approved" => approved
+      }
+      |> put_user_id_opt(Keyword.get(opts, :user_id))
+      |> put_scopes_opt(Keyword.get(opts, :scopes))
+
+    post(c, "/api/auth/oidc/grant", body)
+  end
+
+  defp put_user_id_opt(m, nil), do: m
+  defp put_user_id_opt(m, v), do: Map.put(m, "userId", v)
+
+  defp put_scopes_opt(m, nil), do: m
+  defp put_scopes_opt(m, []), do: m
+  defp put_scopes_opt(m, list) when is_list(list), do: Map.put(m, "scopes", list)
+
   defp post(c, path, body) do
     %__MODULE__{api_key: k, base_url: base} = c
     url = base <> path

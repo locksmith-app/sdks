@@ -119,4 +119,31 @@ class LocksmithClient {
   Future<void> updatePassword({required String token, required String newPassword}) async {
     await _post('/api/auth/password/update', {'token': token, 'newPassword': newPassword});
   }
+
+  Future<Map<String, dynamic>> initiateOAuth(String provider, {String? redirectUrl}) async {
+    final body = <String, dynamic>{};
+    if (redirectUrl != null && redirectUrl.isNotEmpty) {
+      body['redirectUrl'] = redirectUrl;
+    }
+    final enc = Uri.encodeComponent(provider);
+    return _post('/api/auth/oauth/$enc', body);
+  }
+
+  Future<Map<String, dynamic>> exchangeOAuthCode(String code) =>
+      _post('/api/auth/oauth/token', {'code': code});
+
+  Future<Map<String, dynamic>> completeOidcGrant({
+    required String requestToken,
+    required bool approved,
+    String? userId,
+    List<String>? scopes,
+  }) async {
+    final body = <String, dynamic>{
+      'requestToken': requestToken,
+      'approved': approved,
+    };
+    if (userId != null) body['userId'] = userId;
+    if (scopes != null && scopes.isNotEmpty) body['scopes'] = scopes;
+    return _post('/api/auth/oidc/grant', body);
+  }
 }

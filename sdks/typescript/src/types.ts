@@ -51,3 +51,24 @@ export type SignInResult = AuthTokens & {
 export type MagicLinkVerifyResult = AuthTokens & {
   user: UserWithTimestamps
 }
+
+/** Response from POST /api/auth/oauth/:provider */
+export type OAuthInitiateResult = {
+  provider: string
+  authorizationUrl: string
+}
+
+export type OAuthExchangeUser = User & {
+  createdAt: string
+}
+
+/** Response from POST /api/auth/oauth/token */
+export type OAuthTokenExchangeResult = AuthTokens & {
+  user: OAuthExchangeUser
+  provider: string
+}
+
+/** Response from POST /api/auth/oidc/grant */
+export type OidcGrantResult = {
+  redirectUrl: string
+}

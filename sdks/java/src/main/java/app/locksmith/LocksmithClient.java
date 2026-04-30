@@ -157,6 +157,46 @@ public final class LocksmithClient implements AutoCloseable {
         JSON.createObjectNode().put("token", token).put("newPassword", newPassword));
   }
 
+  public JsonNode initiateOAuth(String provider, String redirectUrl) throws Exception {
+    var o = JSON.createObjectNode();
+    if (redirectUrl != null && !redirectUrl.isEmpty()) {
+      o.put("redirectUrl", redirectUrl);
+    }
+    String enc = java.net.URLEncoder.encode(provider, StandardCharsets.UTF_8)
+        .replace("+", "%20"); // path segment: URLEncoder uses + for space
+    return post("/api/auth/oauth/" + enc, o);
+  }
+
+  public JsonNode initiateOAuth(String provider) throws Exception {
+    return initiateOAuth(provider, null);
+  }
+
+  public JsonNode exchangeOAuthCode(String code) throws Exception {
+    return post("/api/auth/oauth/token", JSON.createObjectNode().put("code", code));
+  }
+
+  public JsonNode completeOidcGrant(String requestToken, boolean approved) throws Exception {
+    return completeOidcGrant(requestToken, approved, null, null);
+  }
+
+  public JsonNode completeOidcGrant(
+      String requestToken,
+      boolean approved,
+      String userId,
+      com.fasterxml.jackson.databind.JsonNode scopes
+  ) throws Exception {
+    var o = JSON.createObjectNode()
+        .put("requestToken", requestToken)
+        .put("approved", approved);
+    if (userId != null && !userId.isEmpty()) {
+      o.put("userId", userId);
+    }
+    if (scopes != null && scopes.isArray()) {
+      o.set("scopes", scopes);
+    }
+    return post("/api/auth/oidc/grant", o);
+  }
+
   @Override
   public void close() {
     // HttpClient has no close

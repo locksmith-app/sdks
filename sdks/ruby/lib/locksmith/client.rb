@@ -75,6 +75,23 @@ module Locksmith
       nil
     end
 
+    def initiate_oauth(provider:, redirect_url: nil)
+      body = {}
+      body["redirectUrl"] = redirect_url unless redirect_url.nil?
+      post_json("/api/auth/oauth/#{provider}", body)
+    end
+
+    def exchange_oauth_code(code)
+      post_json("/api/auth/oauth/token", "code" => code)
+    end
+
+    def complete_oidc_grant(request_token:, approved:, user_id: nil, scopes: nil)
+      body = { "requestToken" => request_token, "approved" => approved }
+      body["userId"] = user_id unless user_id.nil?
+      body["scopes"] = scopes unless scopes.nil?
+      post_json("/api/auth/oidc/grant", body)
+    end
+
     private
 
     def url(path)

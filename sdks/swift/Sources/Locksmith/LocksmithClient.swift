@@ -148,4 +148,27 @@ public final class LocksmithClient: @unchecked Sendable {
     public func updatePassword(token: String, newPassword: String) async throws {
         _ = try await post(path: "/api/auth/password/update", body: ["token": token, "newPassword": newPassword])
     }
+
+    public func initiateOAuth(provider: String, redirectUrl: String? = nil) async throws -> [String: Any] {
+        var body: [String: Any] = [:]
+        redirectUrl.map { body["redirectUrl"] = $0 }
+        let enc = provider.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? provider
+        return try await post(path: "/api/auth/oauth/\(enc)", body: body) as! [String: Any]
+    }
+
+    public func exchangeOAuthCode(_ code: String) async throws -> [String: Any] {
+        try await post(path: "/api/auth/oauth/token", body: ["code": code]) as! [String: Any]
+    }
+
+    public func completeOidcGrant(
+        requestToken: String,
+        approved: Bool,
+        userId: String? = nil,
+        scopes: [String]? = nil
+    ) async throws -> [String: Any] {
+        var body: [String: Any] = ["requestToken": requestToken, "approved": approved]
+        userId.map { body["userId"] = $0 }
+        if let s = scopes, !s.isEmpty { body["scopes"] = s }
+        return try await post(path: "/api/auth/oidc/grant", body: body) as! [String: Any]
+    }
 }
