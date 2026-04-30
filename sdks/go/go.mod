@@ -1,4 +1,4 @@
-module github.com/uselocksmith/sdk-go
+module github.com/locksmith-app/sdk-go
 
 go 1.22
 

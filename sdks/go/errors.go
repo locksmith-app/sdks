@@ -1,4 +1,4 @@
-package locksmith // import "github.com/uselocksmith/sdk-go"
+package locksmith // import "github.com/locksmith-app/sdk-go"
 
 import "fmt"
 

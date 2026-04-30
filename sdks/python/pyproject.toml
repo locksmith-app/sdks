@@ -4,14 +4,33 @@ build-backend = "hatchling.build"
 
 [project]
 name = "locksmith-py"
-version = "0.1.0"
-description = "Python client for the Locksmith public auth API"
+version = "0.1.1"
+description = "Official Python client for the Locksmith JWT authentication API (signup, login, OAuth, magic links)."
+readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
+authors = [{ name = "Locksmith" }]
+keywords = ["locksmith", "auth", "authentication", "jwt", "api-client", "oauth", "httpx"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
 dependencies = [
   "httpx>=0.27,<0.29",
   "PyJWT[crypto]>=2.8,<3",
 ]
+
+[project.urls]
+Homepage = "https://getlocksmith.dev"
+Documentation = "https://getlocksmith.dev/docs/api"
+Repository = "https://github.com/locksmith-app/sdks"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]

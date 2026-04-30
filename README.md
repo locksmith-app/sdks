@@ -10,7 +10,7 @@ The **dashboard / Next.js app is not in this repository**; it is developed and h
 |------|----------|--------------------|
 | `sdks/typescript` | TypeScript / Node | npm `@locksmith/sdk` |
 | `sdks/python` | Python | PyPI `locksmith-py` |
-| `sdks/go` | Go | `go get github.com/uselocksmith/sdk-go` |
+| `sdks/go` | Go | `go get github.com/locksmith-app/sdk-go` |
 | `sdks/rust` | Rust | crates.io `locksmith` |
 | `sdks/ruby` | Ruby | RubyGems `locksmith-ruby` |
 | `sdks/php` | PHP | Packagist `locksmith/sdk-php` |

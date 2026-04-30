@@ -93,23 +93,21 @@ Set `TWINE_USERNAME=__token__` and `TWINE_PASSWORD=pypi-...`.
 
 ---
 
-## 3. Go — module proxy (`github.com/uselocksmith/sdk-go`)
+## 3. Go — module proxy (`github.com/locksmith-app/sdk-go`)
 
 | Item | Value in this repo |
 |------|-------------------|
-| Module path | `github.com/uselocksmith/sdk-go` (`sdks/go/go.mod`) |
+| Module path | `github.com/locksmith-app/sdk-go` (`sdks/go/go.mod`) |
+| Public repo | [github.com/locksmith-app/sdk-go](https://github.com/locksmith-app/sdk-go) |
 | “Registry” | [pkg.go.dev](https://pkg.go.dev) indexes from **public Git tags** + proxy.sum.golang.org |
 
 ### One-time setup
 
-**Critical:** The **module path in `go.mod` must match** the Git repo users `go get` from.
-
-- Either host the public repo at **`https://github.com/uselocksmith/sdk-go`**, **or**
-- Change `module` in `go.mod` to match your real mirror (e.g. `github.com/locksmith-app/sdk-go`) and fix all internal imports (if any).
+**Module path in `go.mod` must match** the repo users clone and `go get` from — here, `github.com/locksmith-app/sdk-go`.
 
 ### Publish workflow
 
-There is no separate “upload”: you **tag Git**.
+There is no separate “upload”: you **tag Git** on `sdk-go`.
 
 ```bash
 cd /path/to/sdk-go   # mirrored repo root
@@ -120,10 +118,10 @@ git push origin v0.1.0
 Consumers:
 
 ```bash
-go get github.com/uselocksmith/sdk-go@v0.1.0
+go get github.com/locksmith-app/sdk-go@v0.1.0
 ```
 
-After a few minutes, refresh [pkg.go.dev/github.com/uselocksmith/sdk-go](https://pkg.go.dev/github.com/uselocksmith/sdk-go) (may need `go get` on the module once to trigger indexing).
+After a few minutes, refresh [pkg.go.dev/github.com/locksmith-app/sdk-go](https://pkg.go.dev/github.com/locksmith-app/sdk-go) (may need `go get` on the module once to trigger indexing).
 
 ### Gotchas
 
@@ -445,7 +443,7 @@ The dashboard lives in **`frontend/`** (often `github.com/.../locksmith-app`). T
 
 ## Suggested order (by friction)
 
-1. **Go** — tag public repo (after fixing `go.mod` → URL alignment).
+1. **Go** — tag [sdk-go](https://github.com/locksmith-app/sdk-go) (`v*` semver tags).
 2. **Swift SPM** — public repo + tags.
 3. **npm** — org + token + one publish.
 4. **PyPI** — token + `twine` / trusted publishing.

@@ -2,14 +2,14 @@
 
 Official **Go** client for the [Locksmith](https://getlocksmith.dev) public auth API.
 
-**Module path:** `github.com/uselocksmith/sdk-go` (must match the public Git repository you `go get` from.)
+**Module path:** `github.com/locksmith-app/sdk-go` — public repo: [github.com/locksmith-app/sdk-go](https://github.com/locksmith-app/sdk-go).
 
 - **Docs:** [getlocksmith.dev/docs/api](https://getlocksmith.dev/docs/api)
 
 ## Install
 
 ```bash
-go get github.com/uselocksmith/sdk-go@latest
+go get github.com/locksmith-app/sdk-go@latest
 ```
 
 ## Requirements
@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"os"
 
-	locksmith "github.com/uselocksmith/sdk-go"
+	locksmith "github.com/locksmith-app/sdk-go"
 )
 
 func main() {
