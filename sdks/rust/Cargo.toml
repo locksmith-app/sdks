@@ -1,10 +1,15 @@
 [package]
-name = "locksmith"
+name = "getlocksmith"
 version = "0.1.0"
 edition = "2021"
-description = "Client for the Locksmith public authentication API"
+description = "Official async Rust client for the Locksmith public authentication API (JWT, OAuth, magic links)."
 license = "MIT"
-repository = "https://github.com/uselocksmith/locksmith"
+repository = "https://github.com/locksmith-app/sdk-rust"
+homepage = "https://getlocksmith.dev"
+documentation = "https://docs.rs/getlocksmith"
+readme = "README.md"
+keywords = ["locksmith", "auth", "jwt", "oauth", "api-client"]
+categories = ["api-bindings", "authentication", "web-programming"]
 
 [dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

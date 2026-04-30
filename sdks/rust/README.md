@@ -1,16 +1,17 @@
-# `locksmith` (Rust crate)
+# `getlocksmith`
 
 Official **Rust** client for the [Locksmith](https://getlocksmith.dev) public auth API (async, `reqwest`).
 
-- **Docs:** [getlocksmith.dev/docs/api](https://getlocksmith.dev/docs/api)
-- **crate name:** `locksmith` (confirm availability on [crates.io](https://crates.io) before publishing)
+**Crate:** [`getlocksmith`](https://crates.io/crates/getlocksmith) (the name `locksmith` is already taken on crates.io).
+
+- **Docs:** [getlocksmith.dev/docs/api](https://getlocksmith.dev/docs/api), [docs.rs/getlocksmith](https://docs.rs/getlocksmith)
 
 ## Install
 
 Add to `Cargo.toml`:
 
 ```toml
-locksmith = "0.1"
+getlocksmith = "0.1"
 ```
 
 ## Requirements
@@ -21,10 +22,10 @@ locksmith = "0.1"
 ## Quick start
 
 ```rust
-use locksmith::LocksmithClient;
+use getlocksmith::LocksmithClient;
 
 #[tokio::main]
-async fn main() -> Result<(), locksmith::Error> {
+async fn main() -> Result<(), getlocksmith::Error> {
     let c = LocksmithClient::new(std::env::var("LOCKSMITH_API_KEY").unwrap(), None)?;
     let r = c.sign_in("user@example.com", "secret-here").await?;
     println!("{}", r.user.base.email);

@@ -1,4 +1,4 @@
-# `@locksmith/sdk`
+# `@getlocksmith/sdk`
 
 Official **TypeScript / JavaScript** client for the [Locksmith](https://getlocksmith.dev) public auth API. Works in **Node 18+** (uses `fetch`). Includes optional adapters for **Next.js** middleware and **tRPC** context.
 
@@ -7,7 +7,7 @@ Official **TypeScript / JavaScript** client for the [Locksmith](https://getlocks
 ## Install
 
 ```bash
-npm install @locksmith/sdk
+npm install @getlocksmith/sdk
 ```
 
 Optional peers (only if you use the adapters):
@@ -24,7 +24,7 @@ npm install next @trpc/server
 ## Quick start
 
 ```typescript
-import { LocksmithClient } from '@locksmith/sdk'
+import { LocksmithClient } from '@getlocksmith/sdk'
 
 const auth = new LocksmithClient({
   apiKey: process.env.LOCKSMITH_API_KEY!,
@@ -85,8 +85,8 @@ const payload = auth.verifyToken(accessToken, publicKeyPem)
 
 ## Adapters
 
-- **Next.js:** `import { createMiddleware } from '@locksmith/sdk/adapters/next'`
-- **tRPC:** `import { createTRPCContext } from '@locksmith/sdk/adapters/trpc'`
+- **Next.js:** `import { createMiddleware } from '@getlocksmith/sdk/adapters/next'`
+- **tRPC:** `import { createTRPCContext } from '@getlocksmith/sdk/adapters/trpc'`
 
 ## License
 

@@ -6,7 +6,20 @@
     <RootNamespace>Locksmith</RootNamespace>
     <AssemblyName>Locksmith.Sdk</AssemblyName>
     <Version>0.1.0</Version>
+    <IsPackable>true</IsPackable>
+    <PackageId>Locksmith.Sdk</PackageId>
+    <Authors>Locksmith</Authors>
+    <Description>Official .NET client for the Locksmith public authentication API (JWT, OAuth, magic links).</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://getlocksmith.dev</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/locksmith-app/sdk-dotnet</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>locksmith;auth;jwt;oauth;authentication</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.1" />
   </ItemGroup>

@@ -24,17 +24,17 @@ Step-by-step checklist to get **public GitHub mirrors** wired to **public packag
 
 ---
 
-## 1. TypeScript / JavaScript — npm (`@locksmith/sdk`)
+## 1. TypeScript / JavaScript — npm (`@getlocksmith/sdk`)
 
 | Item | Value in this repo |
 |------|-------------------|
-| Package name | `@locksmith/sdk` (`sdks/typescript/package.json`) |
+| Package name | `@getlocksmith/sdk` (`sdks/typescript/package.json`) |
 | Registry | https://www.npmjs.com/ |
 
 ### One-time setup
 
 1. Create an **npm** account and enable **2FA** (required for publishes).
-2. Create an npm **organization** named `locksmith` (required for the scoped name `@locksmith/sdk`), *or* change the package name to an unscoped name you own (e.g. `locksmith-sdk`) and update `package.json` + imports in docs.
+2. Create an npm **organization** named `getlocksmith` (required for the scoped name `@getlocksmith/sdk`), *or* change the package name to an unscoped name you own (e.g. `locksmith-sdk`) and update `package.json` + imports in docs.
 3. Log in locally: `npm login` (or use a CI **Granular Access Token** / **Automation** token with publish rights to that package).
 
 ### Build & publish (manual)
@@ -130,24 +130,19 @@ After a few minutes, refresh [pkg.go.dev/github.com/locksmith-app/sdk-go](https:
 
 ---
 
-## 4. Rust — crates.io (`locksmith`)
+## 4. Rust — crates.io (`getlocksmith`)
 
 | Item | Value in this repo |
 |------|-------------------|
-| Crate name | `locksmith` (`sdks/rust/Cargo.toml`) |
+| Crate name | `getlocksmith` (`sdks/rust/Cargo.toml`) |
+| Public repo | [github.com/locksmith-app/sdk-rust](https://github.com/locksmith-app/sdk-rust) (mirrored subtree) |
 | Registry | https://crates.io |
 
 ### One-time setup
 
 1. Create [crates.io](https://crates.io) account (GitHub login).
 2. Run `cargo login` with an API token from account settings.
-3. Check name availability: `locksmith` may already be taken — if so, rename in `Cargo.toml` (e.g. `locksmith-sdk`) and update docs.
-
-4. Fill in `Cargo.toml` metadata for publishing:
-
-   - `license = "MIT"` (already present)
-   - Add `documentation`, `homepage`, `repository` URLs pointing to your **public** Rust repo
-   - Consider `readme = "README.md"` and add a minimal README in `sdks/rust/`
+3. Confirm **`Cargo.toml`** has `name = "getlocksmith"` and `repository` / `readme` set (already wired for publish).
 
 ### Publish (manual)
 
@@ -159,8 +154,9 @@ cargo publish
 
 ### Gotchas
 
-- **Edition / MSRV** — document minimum Rust version if relevant.
-- **repository** field currently points at a generic URL; crates.io expects the **exact** repo for this crate.
+- **Import path:** use `getlocksmith::LocksmithClient`, not `locksmith::…`.
+- **Edition / MSRV** — document minimum Rust version in README if you tighten beyond 1.70.
+- Push **`sdk-rust`** mirror and **git tags** `v*` on that repo for a clean GitHub ↔ crates.io story.
 
 ---
 
