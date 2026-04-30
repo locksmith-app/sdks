@@ -202,7 +202,8 @@ jobs:
             exit 0
           fi
           cd sdks/rust
-          cargo publish
+          # apply step rewrites Cargo.toml/Cargo.lock; not committed on the runner
+          cargo publish --allow-dirty
 
   publish-rubygems:
     name: Publish Ruby (RubyGems)
