@@ -2,7 +2,7 @@
 
 Step-by-step checklist to get **public GitHub mirrors** wired to **public package registries**. This repo (`sdks/*`) is the source of truth; per-language repos (e.g. `github.com/locksmith-app/sdk-go`) are usually updated with `git subtree split` (see repo root `scripts/push-sdks-all.ps1` / `.sh` and `README.md`).
 
-**Versioning:** Use **semver** and keep versions aligned across SDKs when you ship the same API surface. Bump each manifest (`package.json`, `Cargo.toml`, etc.), tag the **language repo** with `v0.2.0` (or tag the monorepo — pick one workflow and document it for your team).
+**Versioning:** Use **semver** and keep versions aligned across SDKs when you ship the same API surface. For **GitHub Actions** (`Publish SDKs` workflow), versions are applied automatically — see `.github/workflows/publish-sdks.yml` and `scripts/sdk-version.mjs`: publishing a **GitHub Release** uses the tag as the semver (strip `v`); **Run workflow** with an empty version runs **registry discovery** (npm, crates.io, PyPI, RubyGems, NuGet, pub.dev, Hex, Maven Central) plus `sdks/SDK_VERSION`, takes the **maximum**, then **patch**/**minor**/**major** bump (dropdown). You can also pass an exact **sdk_version** on manual dispatch. For hand publishes, bump each manifest (`package.json`, `Cargo.toml`, etc.) and tag the **language repo** with `v0.2.0` (or tag the monorepo — pick one workflow and document it for your team).
 
 **Before anything:** Ensure license files exist in each SDK root (`MIT` is assumed below) and that repository / homepage URLs in manifests point at the **actual** public GitHub repo users will clone.
 
@@ -450,7 +450,7 @@ The dashboard lives in **`frontend/`** (often `github.com/.../locksmith-app`). T
 
 ## Release checklist (copy-paste)
 
-- [ ] Bump versions in each SDK you are releasing.
+- [ ] Bump versions in each SDK (or rely on **Publish SDKs** workflow auto-version + `sdk-version.mjs apply`).
 - [ ] Update changelogs / READMEs.
 - [ ] Push / mirror to public `sdk-*` repos.
 - [ ] Tag each language repo (`v0.x.y` or ecosystem-appropriate).

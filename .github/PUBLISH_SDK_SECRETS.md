@@ -4,12 +4,16 @@ Add these in **GitHub → your repo → Settings → Secrets and variables → A
 
 Jobs **skip** when their secret is empty, so you can enable registries incrementally.
 
+### Version (no secret)
+
+The workflow **resolve-version** job picks a single semver for every SDK: **GitHub Release** tag, manual **sdk_version**, or **max(published registries + `sdks/SDK_VERSION`) + bump**. See `scripts/sdk-version.mjs` and the **Publish SDKs** workflow `workflow_dispatch` inputs.
+
 | Secret | Registry | How to obtain |
 |--------|----------|----------------|
 | `NPM_TOKEN` | [npm](https://www.npmjs.com/) — `@getlocksmith/sdk` | npm → Access Tokens → **Granular Access Token** (Automation), permission **Publish** on that package (or org). |
 | `PYPI_API_TOKEN` | [PyPI](https://pypi.org/) — `locksmith-py` | PyPI → Account settings → API tokens → token scoped to `locksmith-py` (or whole account for first publish). The action uses trusted upload-style token (`pypi-…`). |
 | `CRATES_IO_TOKEN` | [crates.io](https://crates.io/) — `getlocksmith` | crates.io → Account Settings → API Token. |
-| `RUBYGEMS_API_KEY` | [RubyGems](https://rubygems.org/) — `locksmith-ruby` | RubyGems → Edit profile → API Access. CI sets **`GEM_HOST_API_KEY`** from this value. |
+| `RUBYGEMS_API_KEY` | [RubyGems](https://rubygems.org/) — `locksmith-ruby` | RubyGems → **Settings** → **API Keys** → create a key with **Push rubygem** (or owner) scope. **Important:** On that key, leave **“Require MFA for this key”** (or equivalent) **off** — CI cannot enter an OTP. If MFA was enabled on the key, `gem push` will ask for a code and fail. The workflow writes `~/.gem/credentials` and sets `GEM_HOST_API_KEY` for non-interactive push. |
 | `NUGET_API_KEY` | [NuGet](https://www.nuget.org/) — `Locksmith.Sdk` | nuget.org → Account → API keys → push scoped to `Locksmith.Sdk`. |
 | `PUB_CREDENTIALS_JSON` | [pub.dev](https://pub.dev/) — `locksmith_dart` | On a machine with Dart: `dart pub login`, then copy **`~/.config/dart/pub-credentials.json`** (entire file) as one secret. Ensure `LICENSE` and pub checklist are satisfied before first publish. |
 | `HEX_API_KEY` | [Hex.pm](https://hex.pm/) — `locksmith_ex` | Locally: `mix hex.user auth` / API key from Hex dashboard → use the key Hex shows for automation. |
