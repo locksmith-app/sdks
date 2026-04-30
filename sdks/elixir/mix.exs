@@ -31,7 +31,8 @@ defmodule Locksmith.MixProject do
     [
       {:req, "~> 0.5"},
       {:jason, "~> 1.4"},
-      {:jose, "~> 1.11"}
+      {:jose, "~> 1.11"},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
 end

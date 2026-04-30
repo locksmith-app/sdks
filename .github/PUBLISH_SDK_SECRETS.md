@@ -19,6 +19,17 @@ The workflow **resolve-version** job picks a single semver for every SDK: **GitH
 | `PACKAGIST_USERNAME` | [Packagist](https://packagist.org/) | Your Packagist **username** (same as profile URL). |
 | `PACKAGIST_API_TOKEN` | Packagist | Packagist → Profile → Show API token. Used to **trigger an update** so Composer sees new tags on your `sdk-php` Git repo. |
 
+### Packagist “not auto-updated” / GitHub hook
+
+If [your package](https://packagist.org/packages/locksmith/sdk-php) says **“This package is not auto-updated”**, Packagist is not receiving webhooks when you push or tag the **GitHub repo that Packagist tracks** (for example `github.com/locksmith-app/sdk-php`).
+
+Do one of the following:
+
+1. **GitHub integration (preferred)** — On Packagist, open the package → **Settings** → connect **GitHub** and grant access so Packagist can register a webhook on that repo. After that, pushes and new tags refresh the package automatically. See [How to update packages](https://packagist.org/about#how-to-update-packages) on Packagist.
+2. **This workflow** — Keep `PACKAGIST_USERNAME` and `PACKAGIST_API_TOKEN` set so the **Refresh Packagist** job calls the Packagist **update-package** API after a release (same effect as clicking “Update” on the package page).
+
+The API token refresh does **not** replace the webhook long-term; it only triggers one update per workflow run.
+
 ### Optional repository variable
 
 | Variable | Purpose |

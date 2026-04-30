@@ -52,7 +52,7 @@ defmodule Locksmith.Client do
   def verify_token(access_token, public_key_pem) do
     jwk = JOSE.JWK.from_pem(public_key_pem)
 
-    case JOSE.JWT.verify_compact(access_token, jwk) do
+    case JOSE.JWT.verify_strict(jwk, ["RS256"], access_token) do
       {true, jose_jwt, _jws} ->
         {_header, claims} = JOSE.JWT.to_map(jose_jwt)
 
