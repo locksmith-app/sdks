@@ -2,10 +2,10 @@
 #
 # Trigger manually after you bump versions in each SDK manifest, or when you publish a GitHub Release.
 #
-# ── Secrets to add (repo → Settings → Secrets and variables → Actions): see .github/PUBLISH_SDK_SECRETS.md
+# ── Secrets: see .github/PUBLISH_SDK_SECRETS.md
 #
-# Jobs with missing secrets are skipped (not failed). Registry publishes still fail if the version
-# already exists—bump the manifest before re-running.
+# Note: `secrets` cannot be used in job-level `if:` (GitHub expression rules). Each publish step
+# uses step-level `if:` so jobs are skipped at step granularity when a secret is unset.
 
 name: Publish SDKs
 
@@ -78,18 +78,20 @@ jobs:
   publish-npm:
     name: Publish TypeScript (npm)
     runs-on: ubuntu-latest
-    if: ${{ secrets.NPM_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
+        if: ${{ secrets.NPM_TOKEN != '' }}
         with:
           node-version: "20"
           registry-url: https://registry.npmjs.org
           cache: npm
           cache-dependency-path: sdks/typescript/package-lock.json
-      - run: npm ci && npm run build
+      - if: ${{ secrets.NPM_TOKEN != '' }}
+        run: npm ci && npm run build
         working-directory: sdks/typescript
-      - run: npm publish --access public --provenance
+      - if: ${{ secrets.NPM_TOKEN != '' }}
+        run: npm publish --access public --provenance
         working-directory: sdks/typescript
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -98,17 +100,17 @@ jobs:
   publish-pypi:
     name: Publish Python (PyPI)
     runs-on: ubuntu-latest
-    if: ${{ secrets.PYPI_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        if: ${{ secrets.PYPI_API_TOKEN != '' }}
         with:
           python-version: "3.12"
-      - run: pip install build
-        working-directory: sdks/python
-      - run: python -m build
+      - if: ${{ secrets.PYPI_API_TOKEN != '' }}
+        run: pip install build && python -m build
         working-directory: sdks/python
       - uses: pypa/gh-action-pypi-publish@release/v1
+        if: ${{ secrets.PYPI_API_TOKEN != '' }}
         with:
           packages-dir: sdks/python/dist/
           password: ${{ secrets.PYPI_API_TOKEN }}
@@ -117,11 +119,12 @@ jobs:
   publish-crates-io:
     name: Publish Rust (crates.io)
     runs-on: ubuntu-latest
-    if: ${{ secrets.CRATES_IO_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo publish
+        if: ${{ secrets.CRATES_IO_TOKEN != '' }}
+      - if: ${{ secrets.CRATES_IO_TOKEN != '' }}
+        run: cargo publish
         working-directory: sdks/rust
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
@@ -130,15 +133,16 @@ jobs:
   publish-rubygems:
     name: Publish Ruby (RubyGems)
     runs-on: ubuntu-latest
-    if: ${{ secrets.RUBYGEMS_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
+        if: ${{ secrets.RUBYGEMS_API_KEY != '' }}
         with:
           ruby-version: "3.3"
           working-directory: sdks/ruby
           bundler-cache: false
-      - run: gem build locksmith-ruby.gemspec && gem push locksmith-ruby-*.gem
+      - if: ${{ secrets.RUBYGEMS_API_KEY != '' }}
+        run: gem build locksmith-ruby.gemspec && gem push locksmith-ruby-*.gem
         working-directory: sdks/ruby
         env:
           GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
@@ -147,15 +151,17 @@ jobs:
   publish-nuget:
     name: Publish .NET (NuGet)
     runs-on: ubuntu-latest
-    if: ${{ secrets.NUGET_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
+        if: ${{ secrets.NUGET_API_KEY != '' }}
         with:
           dotnet-version: "8.0.x"
-      - run: dotnet pack -c Release -o dist
+      - if: ${{ secrets.NUGET_API_KEY != '' }}
+        run: dotnet pack -c Release -o dist
         working-directory: sdks/dotnet
-      - run: dotnet nuget push dist/*.nupkg -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY" --skip-duplicate
+      - if: ${{ secrets.NUGET_API_KEY != '' }}
+        run: dotnet nuget push dist/*.nupkg -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY" --skip-duplicate
         working-directory: sdks/dotnet
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
@@ -164,35 +170,39 @@ jobs:
   publish-pub-dev:
     name: Publish Dart (pub.dev)
     runs-on: ubuntu-latest
-    if: ${{ secrets.PUB_CREDENTIALS_JSON != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
+        if: ${{ secrets.PUB_CREDENTIALS_JSON != '' }}
         with:
           sdk: stable
       - name: Write pub credentials
+        if: ${{ secrets.PUB_CREDENTIALS_JSON != '' }}
         run: |
           mkdir -p "$HOME/.config/dart"
           echo "$PUB_CREDENTIALS_JSON" > "$HOME/.config/dart/pub-credentials.json"
         env:
           PUB_CREDENTIALS_JSON: ${{ secrets.PUB_CREDENTIALS_JSON }}
-      - run: dart pub publish -f
+      - if: ${{ secrets.PUB_CREDENTIALS_JSON != '' }}
+        run: dart pub publish -f
         working-directory: sdks/dart
 
   # ── Hex.pm (locksmith_ex) ───────────────────────────────────────────────────
   publish-hex:
     name: Publish Elixir (Hex)
     runs-on: ubuntu-latest
-    if: ${{ secrets.HEX_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
+        if: ${{ secrets.HEX_API_KEY != '' }}
         with:
           elixir-version: "1.16"
           otp-version: "26"
-      - run: mix deps.get
+      - if: ${{ secrets.HEX_API_KEY != '' }}
+        run: mix deps.get
         working-directory: sdks/elixir
-      - run: mix hex.publish --yes
+      - if: ${{ secrets.HEX_API_KEY != '' }}
+        run: mix hex.publish --yes
         working-directory: sdks/elixir
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
@@ -201,9 +211,10 @@ jobs:
   refresh-packagist:
     name: Refresh Packagist (PHP)
     runs-on: ubuntu-latest
-    if: ${{ secrets.PACKAGIST_API_TOKEN != '' && secrets.PACKAGIST_USERNAME != '' }}
     steps:
+      - uses: actions/checkout@v4
       - name: Update package on Packagist
+        if: ${{ secrets.PACKAGIST_API_TOKEN != '' && secrets.PACKAGIST_USERNAME != '' }}
         env:
           PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
           PACKAGIST_API_TOKEN: ${{ secrets.PACKAGIST_API_TOKEN }}
