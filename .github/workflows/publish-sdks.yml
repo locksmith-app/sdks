@@ -2,10 +2,11 @@
 #
 # Trigger manually after you bump versions in each SDK manifest, or when you publish a GitHub Release.
 #
-# ── Secrets: see .github/PUBLISH_SDK_SECRETS.md
+# Secrets: see .github/PUBLISH_SDK_SECRETS.md
 #
-# Note: `secrets` cannot be used in job-level `if:` (GitHub expression rules). Each publish step
-# uses step-level `if:` so jobs are skipped at step granularity when a secret is unset.
+# Skipping: registry tokens are read in `env` only; each job uses a shell guard so missing secrets
+# produce a notice and exit 0 (no failed job). This avoids `secrets` in `if:` expressions, which
+# many validators reject.
 
 name: Publish SDKs
 
@@ -23,7 +24,6 @@ permissions:
   id-token: write
 
 jobs:
-  # ── Optional: sanity checks (no registry secrets) ─────────────────────────
   verify-go:
     name: Verify Go SDK
     runs-on: ubuntu-latest
@@ -74,152 +74,175 @@ jobs:
       - run: swift build
         working-directory: sdks/swift
 
-  # ── npm (@getlocksmith/sdk) ─────────────────────────────────────────────────
   publish-npm:
     name: Publish TypeScript (npm)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        if: ${{ secrets.NPM_TOKEN != '' }}
         with:
           node-version: "20"
           registry-url: https://registry.npmjs.org
           cache: npm
           cache-dependency-path: sdks/typescript/package-lock.json
-      - if: ${{ secrets.NPM_TOKEN != '' }}
-        run: npm ci && npm run build
-        working-directory: sdks/typescript
-      - if: ${{ secrets.NPM_TOKEN != '' }}
-        run: npm publish --access public --provenance
-        working-directory: sdks/typescript
+      - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::notice::Skipping npm publish — add NPM_TOKEN secret."
+            exit 0
+          fi
+          cd sdks/typescript
+          npm ci
+          npm run build
+          npm publish --access public --provenance
 
-  # ── PyPI (locksmith-py) ────────────────────────────────────────────────────
   publish-pypi:
     name: Publish Python (PyPI)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        if: ${{ secrets.PYPI_API_TOKEN != '' }}
         with:
           python-version: "3.12"
-      - if: ${{ secrets.PYPI_API_TOKEN != '' }}
-        run: pip install build && python -m build
-        working-directory: sdks/python
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        if: ${{ secrets.PYPI_API_TOKEN != '' }}
-        with:
-          packages-dir: sdks/python/dist/
-          password: ${{ secrets.PYPI_API_TOKEN }}
+      - name: Build and publish to PyPI
+        env:
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TWINE_PASSWORD:-}" ]; then
+            echo "::notice::Skipping PyPI — add PYPI_API_TOKEN secret."
+            exit 0
+          fi
+          pip install build twine
+          cd sdks/python
+          python -m build
+          TWINE_USERNAME=__token__ twine upload dist/*
 
-  # ── crates.io (getlocksmith) ───────────────────────────────────────────────
   publish-crates-io:
     name: Publish Rust (crates.io)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        if: ${{ secrets.CRATES_IO_TOKEN != '' }}
-      - if: ${{ secrets.CRATES_IO_TOKEN != '' }}
-        run: cargo publish
-        working-directory: sdks/rust
+      - name: Publish crate
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "::notice::Skipping crates.io — add CRATES_IO_TOKEN secret."
+            exit 0
+          fi
+          cd sdks/rust
+          cargo publish
 
-  # ── RubyGems (locksmith-ruby) ──────────────────────────────────────────────
   publish-rubygems:
     name: Publish Ruby (RubyGems)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
-        if: ${{ secrets.RUBYGEMS_API_KEY != '' }}
         with:
           ruby-version: "3.3"
           working-directory: sdks/ruby
           bundler-cache: false
-      - if: ${{ secrets.RUBYGEMS_API_KEY != '' }}
-        run: gem build locksmith-ruby.gemspec && gem push locksmith-ruby-*.gem
-        working-directory: sdks/ruby
+      - name: Push gem
         env:
           GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GEM_HOST_API_KEY:-}" ]; then
+            echo "::notice::Skipping RubyGems — add RUBYGEMS_API_KEY secret."
+            exit 0
+          fi
+          cd sdks/ruby
+          gem build locksmith-ruby.gemspec
+          gem push locksmith-ruby-*.gem
 
-  # ── NuGet (Locksmith.Sdk) ───────────────────────────────────────────────────
   publish-nuget:
     name: Publish .NET (NuGet)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
-        if: ${{ secrets.NUGET_API_KEY != '' }}
         with:
           dotnet-version: "8.0.x"
-      - if: ${{ secrets.NUGET_API_KEY != '' }}
-        run: dotnet pack -c Release -o dist
-        working-directory: sdks/dotnet
-      - if: ${{ secrets.NUGET_API_KEY != '' }}
-        run: dotnet nuget push dist/*.nupkg -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY" --skip-duplicate
-        working-directory: sdks/dotnet
+      - name: Pack and push
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          cd sdks/dotnet
+          if [ -z "${NUGET_API_KEY:-}" ]; then
+            echo "::notice::Skipping NuGet — add NUGET_API_KEY secret."
+            exit 0
+          fi
+          dotnet pack -c Release -o dist
+          dotnet nuget push dist/*.nupkg -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY" --skip-duplicate
 
-  # ── pub.dev (locksmith_dart) ────────────────────────────────────────────────
   publish-pub-dev:
     name: Publish Dart (pub.dev)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
-        if: ${{ secrets.PUB_CREDENTIALS_JSON != '' }}
         with:
           sdk: stable
-      - name: Write pub credentials
-        if: ${{ secrets.PUB_CREDENTIALS_JSON != '' }}
-        run: |
-          mkdir -p "$HOME/.config/dart"
-          echo "$PUB_CREDENTIALS_JSON" > "$HOME/.config/dart/pub-credentials.json"
+      - name: Publish to pub.dev
         env:
           PUB_CREDENTIALS_JSON: ${{ secrets.PUB_CREDENTIALS_JSON }}
-      - if: ${{ secrets.PUB_CREDENTIALS_JSON != '' }}
-        run: dart pub publish -f
-        working-directory: sdks/dart
+        run: |
+          set -euo pipefail
+          if [ -z "${PUB_CREDENTIALS_JSON:-}" ]; then
+            echo "::notice::Skipping pub.dev — add PUB_CREDENTIALS_JSON secret."
+            exit 0
+          fi
+          mkdir -p "$HOME/.config/dart"
+          printf '%s\n' "$PUB_CREDENTIALS_JSON" > "$HOME/.config/dart/pub-credentials.json"
+          cd sdks/dart
+          dart pub publish -f
 
-  # ── Hex.pm (locksmith_ex) ───────────────────────────────────────────────────
   publish-hex:
     name: Publish Elixir (Hex)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
-        if: ${{ secrets.HEX_API_KEY != '' }}
         with:
           elixir-version: "1.16"
           otp-version: "26"
-      - if: ${{ secrets.HEX_API_KEY != '' }}
-        run: mix deps.get
-        working-directory: sdks/elixir
-      - if: ${{ secrets.HEX_API_KEY != '' }}
-        run: mix hex.publish --yes
-        working-directory: sdks/elixir
+      - name: Publish to Hex
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HEX_API_KEY:-}" ]; then
+            echo "::notice::Skipping Hex — add HEX_API_KEY secret."
+            exit 0
+          fi
+          cd sdks/elixir
+          mix deps.get
+          mix hex.publish --yes
 
-  # ── Packagist (locksmith/sdk-php) — refreshes metadata after you tagged the GitHub repo ──
   refresh-packagist:
     name: Refresh Packagist (PHP)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Update package on Packagist
-        if: ${{ secrets.PACKAGIST_API_TOKEN != '' && secrets.PACKAGIST_USERNAME != '' }}
         env:
           PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
           PACKAGIST_API_TOKEN: ${{ secrets.PACKAGIST_API_TOKEN }}
           PACKAGIST_REPO: ${{ vars.PACKAGIST_REPOSITORY_URL }}
         run: |
+          set -euo pipefail
+          if [ -z "${PACKAGIST_USERNAME:-}" ] || [ -z "${PACKAGIST_API_TOKEN:-}" ]; then
+            echo "::notice::Skipping Packagist — add PACKAGIST_USERNAME and PACKAGIST_API_TOKEN secrets."
+            exit 0
+          fi
           REPO="${PACKAGIST_REPO:-https://github.com/locksmith-app/sdk-php}"
           curl -fsS -X POST \
             --user "${PACKAGIST_USERNAME}:${PACKAGIST_API_TOKEN}" \
