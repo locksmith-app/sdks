@@ -13,7 +13,6 @@ The workflow **resolve-version** job picks a single semver for every SDK: **GitH
 | `NPM_TOKEN` | [npm](https://www.npmjs.com/) — `@getlocksmith/sdk` | npm → Access Tokens → **Granular Access Token** (Automation), permission **Publish** on that package (or org). |
 | `PYPI_API_TOKEN` | [PyPI](https://pypi.org/) — `locksmith-py` | PyPI → Account settings → API tokens → token scoped to `locksmith-py` (or whole account for first publish). The action uses trusted upload-style token (`pypi-…`). |
 | `CRATES_IO_TOKEN` | [crates.io](https://crates.io/) — `getlocksmith` | crates.io → Account Settings → API Token. |
-| `RUBYGEMS_API_KEY` | [RubyGems](https://rubygems.org/) — `locksmith-ruby` | **Settings → API Keys:** create a key with **Push rubygem** scope. Turn **off** “MFA required for this key” / “Enable MFA on this API key” so automation never needs an OTP. Value should look like `rubygems_…`. The workflow uploads via `POST https://rubygems.org/api/v1/gems` with header `Authorization:<key>` (see [API](https://guides.rubygems.org/rubygems-org-api/)), not interactive `gem push`. |
 | `NUGET_API_KEY` | [NuGet](https://www.nuget.org/) — `Locksmith.Sdk` | nuget.org → Account → API keys → push scoped to `Locksmith.Sdk`. |
 | `PUB_CREDENTIALS_JSON` | [pub.dev](https://pub.dev/) — `locksmith_dart` | **Not** a GCP service account. OAuth token file from **`dart pub login`** (browser): **Windows** → `%APPDATA%\dart\pub-credentials.json` (`C:\Users\<you>\AppData\Roaming\dart\…`); **macOS** → `~/Library/Application Support/dart/pub-credentials.json`; **Linux** → `~/.config/dart/pub-credentials.json`. Paste the **whole file** into the secret. **Preferred:** [Automated publishing](https://dart.dev/tools/pub/automated-publishing) (GitHub OIDC, no long-lived JSON). **GCP:** same doc describes `gcloud auth print-identity-token` + `dart pub token add` for Cloud Build. |
 | `HEX_API_KEY` | [Hex.pm](https://hex.pm/) — `locksmith_ex` | Locally: `mix hex.user auth` / API key from Hex dashboard → use the key Hex shows for automation. |
@@ -29,6 +28,7 @@ The workflow **resolve-version** job picks a single semver for every SDK: **GitH
 ### Not automated in this workflow
 
 - **Go** — Modules are published by **Git tags** on `github.com/locksmith-app/sdk-go` (see `sdks/PUBLISHING.md`). The workflow only runs `go test` for sanity.
+- **RubyGems** — **`locksmith-ruby`** is **not** published by this workflow. Build locally with `gem build` / `gem push` (or add your own job); see `sdks/PUBLISHING.md`.
 - **Java / Kotlin (Maven Central)** — Needs Sonatype namespace, GPG signing, and `distributionManagement` / Gradle `maven-publish`. The workflow only **build-verifies** those SDKs until you extend it.
 - **Swift** — Distributed via **Git + semver tags** on your Swift mirror repo, not a binary registry. The workflow runs `swift build` only.
 

@@ -45,12 +45,29 @@ public final class LocksmithClient: @unchecked Sendable {
         return u
     }
 
+    /// Linux `URLSession` does not implement async `data(for:)`; use the completion-handler API.
+    private func sessionData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await withCheckedThrowingContinuation { continuation in
+            session.dataTask(with: request) { data, response, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let data, let response else {
+                    continuation.resume(throwing: URLError(.badServerResponse))
+                    return
+                }
+                continuation.resume(returning: (data, response))
+            }.resume()
+        }
+    }
+
     private func send(_ req: URLRequest, withApiKey: Bool) async throws -> Any {
         var r = req
         if withApiKey {
             r.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
         }
-        let (data, res) = try await session.data(for: r)
+        let (data, res) = try await sessionData(for: r)
         let http = res as? HTTPURLResponse
         let status = http?.statusCode ?? 0
         let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]

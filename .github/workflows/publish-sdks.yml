@@ -3,8 +3,9 @@
 # Versioning (unified semver across SDKs):
 #   • GitHub Release published → version is the release tag (e.g. v1.2.3 → 1.2.3).
 #   • workflow_dispatch with optional sdk_version → use that exact semver.
-#   • workflow_dispatch with sdk_version empty → max(npm, crates.io, PyPI, RubyGems, NuGet, pub.dev,
-#     Hex, Maven Central, sdks/SDK_VERSION) then apply bump (patch | minor | major).
+#   • workflow_dispatch with sdk_version empty → max(npm, crates.io, PyPI, NuGet, pub.dev, Hex, Maven
+#     Central, RubyGems registry versions, sdks/SDK_VERSION) then apply bump (patch | minor | major).
+#   RubyGems is not published from this workflow — push gems manually or use a separate job.
 #   Each publish job runs scripts/sdk-version.mjs apply before publishing.
 #
 # Secrets: see .github/PUBLISH_SDK_SECRETS.md
@@ -205,53 +206,6 @@ jobs:
           # apply step rewrites Cargo.toml/Cargo.lock; not committed on the runner
           cargo publish --allow-dirty
 
-  publish-rubygems:
-    name: Publish Ruby (RubyGems)
-    runs-on: ubuntu-latest
-    needs: resolve-version
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: Apply unified SDK version
-        env:
-          SDK_PUBLISH_VERSION: ${{ needs.resolve-version.outputs.version }}
-        run: node scripts/sdk-version.mjs apply
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.3"
-          working-directory: sdks/ruby
-          bundler-cache: false
-      - name: Push gem
-        env:
-          RUBYGEMS_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
-        run: |
-          set -euo pipefail
-          if [ -z "${RUBYGEMS_API_KEY:-}" ]; then
-            echo "::notice::Skipping RubyGems — add RUBYGEMS_API_KEY secret."
-            exit 0
-          fi
-          # Use the HTTP API (guides.rubygems.org) so we never hit interactive gem sign-in / OTP.
-          # The `gem` CLI can still prompt for MFA even when an API key exists if it picks the wrong credentials path.
-          KEY="$(printf '%s' "$RUBYGEMS_API_KEY" | tr -d '\r\n[:space:]')"
-          cd sdks/ruby
-          gem build locksmith-ruby.gemspec
-          shopt -s nullglob
-          GEMS=(locksmith-ruby-*.gem)
-          if [ "${#GEMS[@]}" -eq 0 ]; then
-            echo "::error::No .gem file produced"
-            exit 1
-          fi
-          # Pick newest by mtime (handles multiple matches)
-          GEM_FILE="$(ls -t locksmith-ruby-*.gem | head -n1)"
-          # curl defaults to application/x-www-form-urlencoded for --data-binary, which can break gem parsing server-side
-          curl -sS --fail-with-body -X POST \
-            --data-binary "@${GEM_FILE}" \
-            -H "Content-Type: application/octet-stream" \
-            -H "Authorization:${KEY}" \
-            https://rubygems.org/api/v1/gems
-
   publish-nuget:
     name: Publish .NET (NuGet)
     runs-on: ubuntu-latest
@@ -309,7 +263,8 @@ jobs:
           mkdir -p "$HOME/.config/dart"
           printf '%s\n' "$PUB_CREDENTIALS_JSON" > "$HOME/.config/dart/pub-credentials.json"
           cd sdks/dart
-          dart pub publish -f
+          # apply rewrites pubspec (and CHANGELOG via sdk-version.mjs) uncommitted — skip-validation avoids git-clean errors
+          dart pub publish --force --skip-validation
 
   publish-hex:
     name: Publish Elixir (Hex)

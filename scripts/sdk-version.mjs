@@ -293,6 +293,23 @@ function applyVersion(version) {
     ),
   );
 
+  const dartChangelog = resolve(SDKS, "dart/CHANGELOG.md");
+  const dartBlock = `## ${version}\n\n- Automated SDK release (CI).\n\n`;
+  if (!existsSync(dartChangelog)) {
+    writeFileSync(dartChangelog, `# Changelog\n\n${dartBlock}`);
+  } else {
+    let ch = readFileSync(dartChangelog, "utf8");
+    const esc = version.replace(/\./g, "\\.");
+    if (new RegExp(`^## ${esc}\\s*$`, "m").test(ch)) {
+      /* already documented */
+    } else if (ch.startsWith("# Changelog")) {
+      ch = ch.replace(/^# Changelog\s*\n/, `# Changelog\n\n${dartBlock}`);
+      writeFileSync(dartChangelog, ch);
+    } else {
+      writeFileSync(dartChangelog, `${dartBlock}${ch}`);
+    }
+  }
+
   const mix = resolve(SDKS, "elixir/mix.exs");
   writeFileSync(
     mix,
