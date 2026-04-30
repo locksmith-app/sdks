@@ -22,6 +22,7 @@ node_modules/
 **/node_modules/
 
 sdks/typescript/dist/
+sdks/nextjs/dist/
 
 sdks/rust/target/
 

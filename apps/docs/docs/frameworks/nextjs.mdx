@@ -28,7 +28,7 @@ npm install @simplewebauthn/browser
 | Import | Contents |
 |--------|----------|
 | `@getlocksmith/nextjs/server` | `LocksmithServerClient`, `createLocksmithRouteHandlers`, `createLocksmithMiddleware`, `locksmithServerClientFromEnv` |
-| `@getlocksmith/nextjs/client` | `LocksmithAuthProvider`, forms, `LocksmithBffClient`, theme helpers |
+| `@getlocksmith/nextjs/client` | `LocksmithAuthProvider`, forms, OAuth/OIDC UI, `LocksmithBffClient`, theme helpers |
 | `@getlocksmith/nextjs` | Shared types, `LocksmithAuthError`, `locksmithEnvironmentFromApiKey` |
 
 ## Environment variables (server)
@@ -99,6 +99,204 @@ export function LoginCard() {
 <Callout variant="note" title="Powered by Locksmith">
   On the Free plan, built-in forms show a **Powered by Locksmith** footer. There is no prop to remove it; upgrade or configure <code>accountPlan</code> on the route handler so paid projects do not require it.
 </Callout>
+
+## Social OAuth (GitHub, Google, …)
+
+The BFF adds **`POST …/oauth/:provider`** (proxies Locksmith) and **`POST …/oauth/exchange`** to turn `?code=` into **httpOnly** session cookies. Configure the provider and redirect URLs in the Locksmith dashboard.
+
+### Built-in components
+
+Use **`LocksmithOAuthSignInButton`** to start the flow and **`LocksmithOAuthCallback`** on the page that receives `?code=`.
+
+**Callback page** (e.g. `app/auth/callback/page.tsx`):
+
+```tsx
+import { LocksmithOAuthCallback } from '@getlocksmith/nextjs/client'
+
+export default function AuthCallbackPage() {
+  return <LocksmithOAuthCallback redirectTo="/" />
+}
+```
+
+**Sign-in** — set `redirectUrl` to the **full URL** of that callback:
+
+```tsx
+import { LocksmithOAuthSignInButton } from '@getlocksmith/nextjs/client'
+
+export function GitHubSignIn() {
+  return (
+    <LocksmithOAuthSignInButton
+      provider="github"
+      redirectUrl="https://myapp.com/auth/callback"
+    >
+      Continue with GitHub
+    </LocksmithOAuthSignInButton>
+  )
+}
+```
+
+### Manual: hooks or `LocksmithBffClient`
+
+Inside **`LocksmithAuthProvider`**, use **`useLocksmithAuth()`**:
+
+- **`startOAuth(provider, redirectUrl?)`** — fetches `authorizationUrl` from the BFF and sets `window.location.href` (full-page redirect to GitHub/Google, etc.).
+- **`completeOAuthExchange(code)`** — `POST`s the code to `…/oauth/exchange`, sets cookies, refreshes session state. Call this on your callback route after reading `searchParams.get('code')` (e.g. in `useEffect`). Handle errors via the context `error` field or try/catch.
+
+```tsx
+'use client'
+
+import { useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useLocksmithAuth } from '@getlocksmith/nextjs/client'
+
+export function OAuthCallbackManual() {
+  const { completeOAuthExchange, error } = useLocksmithAuth()
+  const router = useRouter()
+  const code = useSearchParams().get('code')
+
+  useEffect(() => {
+    if (!code) return
+    void (async () => {
+      await completeOAuthExchange(code)
+      router.replace('/')
+    })()
+  }, [code, completeOAuthExchange, router])
+
+  if (error) return <p>{error}</p>
+  return <p>Completing sign-in…</p>
+}
+```
+
+```tsx
+'use client'
+
+import { useLocksmithAuth } from '@getlocksmith/nextjs/client'
+
+export function GitHubButtonManual() {
+  const { startOAuth } = useLocksmithAuth()
+  return (
+    <button type="button" onClick={() => void startOAuth('github', 'https://myapp.com/auth/callback')}>
+      Continue with GitHub
+    </button>
+  )
+}
+```
+
+**Without the provider** (same-origin fetch, `credentials: 'include'`), instantiate **`LocksmithBffClient`** with the same `routePrefix` / `origin` as your BFF:
+
+```tsx
+import { LocksmithBffClient } from '@getlocksmith/nextjs/client'
+
+const bff = new LocksmithBffClient({ routePrefix: '/api/locksmith' })
+
+const { authorizationUrl } = await bff.initiateOAuth('github', 'https://myapp.com/auth/callback')
+window.location.href = authorizationUrl
+
+// On the callback page:
+Wrap callback pages that use **`useSearchParams()`** in a React **`Suspense`** boundary if Next.js warns during static generation (the premade **`LocksmithOAuthCallback`** does this for you).
+
+## Hosted SSO / OIDC consent (Pro)
+
+Locksmith’s OIDC **`authorize`** endpoint redirects the user to your app’s **login URL** with query params: **`request_token`**, **`app_name`**, **`scope`**. After the user signs in, you approve or deny; the BFF **`POST …/oidc/grant`** completes the flow and returns a **`redirectUrl`** the browser must open (authorization `code` or OAuth error query params for the OIDC client).
+
+### Built-in component
+
+Mount **`LocksmithOidcConsent`** on that login URL. Use **`signInSlot`** for your own sign-in UI (e.g. `<LocksmithSignInForm />` and `<LocksmithTotpForm />`).
+
+```tsx
+import {
+  LocksmithOidcConsent,
+  LocksmithSignInForm,
+  LocksmithTotpForm,
+} from '@getlocksmith/nextjs/client'
+
+export default function OidcLoginPage() {
+  return (
+    <LocksmithOidcConsent
+      signInSlot={
+        <>
+          <LocksmithSignInForm />
+          <LocksmithTotpForm />
+        </>
+      }
+    />
+  )
+}
+```
+
+### Manual: hooks or `LocksmithBffClient`
+
+Read **`request_token`**, **`app_name`**, and **`scope`** from the URL (e.g. `useSearchParams()`). Build your own consent UI.
+
+Inside **`LocksmithAuthProvider`**, call **`completeOidcConsent({ requestToken, approved, scopes? })`**. It returns a **`redirectUrl`** string — assign **`window.location.href`** to send the user back to the OIDC client (Slack, custom app, etc.).
+
+- **`approved: false`** — no session required; omit `scopes`.
+- **`approved: true`** — the user must have a valid BFF session (access cookie). Pass **`scopes`** as the subset of requested scopes you allow (must include **`openid`**).
+
+```tsx
+'use client'
+
+import { useSearchParams } from 'next/navigation'
+import { useLocksmithAuth } from '@getlocksmith/nextjs/client'
+
+export function OidcDenyManual() {
+  const token = useSearchParams().get('request_token') ?? ''
+  const { completeOidcConsent } = useLocksmithAuth()
+
+  return (
+    <button type="button" onClick={() => void completeOidcConsent({ requestToken: token, approved: false }).then((url) => {
+      window.location.href = url
+    })}>
+      Deny access
+    </button>
+  )
+}
+```
+
+```tsx
+'use client'
+
+import { useSearchParams } from 'next/navigation'
+import { useLocksmithAuth } from '@getlocksmith/nextjs/client'
+
+export function OidcAllowManual() {
+  const token = useSearchParams().get('request_token') ?? ''
+  const scopeParam = useSearchParams().get('scope') ?? 'openid'
+  const requested = scopeParam.split(/\s+/).filter(Boolean)
+  const { completeOidcConsent } = useLocksmithAuth()
+
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        void completeOidcConsent({
+          requestToken: token,
+          approved: true,
+          scopes: requested,
+        }).then((url) => {
+          window.location.href = url
+        })
+      }
+    >
+      Allow
+    </button>
+  )
+}
+```
+
+**Without the provider**, use **`LocksmithBffClient.oidcGrant`** (cookies must be sent if `approved` is true):
+
+```tsx
+import { LocksmithBffClient } from '@getlocksmith/nextjs/client'
+
+const bff = new LocksmithBffClient({ routePrefix: '/api/locksmith' })
+const { redirectUrl } = await bff.oidcGrant({
+  requestToken,
+  approved: true,
+  scopes: ['openid', 'email'],
+})
+window.location.href = redirectUrl
+```
 
 ## Middleware
 
