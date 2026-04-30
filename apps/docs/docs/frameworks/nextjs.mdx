@@ -7,42 +7,69 @@ import { Callout } from '@site/src/components/Callout'
 
 # Next.js (`@getlocksmith/nextjs`)
 
-Next.js integration for Locksmith: **server** client (API key), **cookie BFF** route handlers, **middleware**, and **client** React provider with themed sign-in, sign-up, TOTP, and passkey UI.
+The official Next.js integration for [Locksmith](https://getlocksmith.dev). It gives you:
 
-For plain Node or non-Next servers, use the [TypeScript SDK](/sdks/typescript) (`@getlocksmith/sdk`).
+- **Server-only** `LocksmithServerClient` (API key) for Route Handlers, Server Actions, and middleware.
+- **BFF route handlers** that proxy Locksmith with **httpOnly cookies** so the browser never sees your project API key.
+- **`LocksmithAuthProvider`** + **`LocksmithBffClient`** for the browser (cookie session, same-origin `fetch`).
+- **Themed UI** for sign-in, sign-up, TOTP, social OAuth, OIDC consent, OAuth callback, passkey sign-in, and low-level layout primitives.
+
+For non-Next backends, use the HTTP SDK [**`@getlocksmith/sdk`**](/sdks/typescript).
+
+---
 
 ## Install
 
 ```bash
-npm install @getlocksmith/nextjs next react react-dom
+npm install @getlocksmith/nextjs
 ```
 
-Passkeys (optional):
+**Passkeys** (optional peer — only if you use `LocksmithPasskeySignInButton`):
 
 ```bash
 npm install @simplewebauthn/browser
 ```
 
-## Entry points
+**Peer requirements:** `next` ≥ 14.2, `react` / `react-dom` ≥ 18. Node ≥ 18.
 
-| Import | Contents |
-|--------|----------|
-| `@getlocksmith/nextjs/server` | `LocksmithServerClient`, `createLocksmithRouteHandlers`, `createLocksmithMiddleware`, `locksmithServerClientFromEnv` |
-| `@getlocksmith/nextjs/client` | `LocksmithAuthProvider`, forms, OAuth/OIDC UI, `LocksmithBffClient`, theme helpers |
-| `@getlocksmith/nextjs` | Shared types, `LocksmithAuthError`, `locksmithEnvironmentFromApiKey` |
+---
+
+## Package entry points
+
+| Import | Use |
+|--------|-----|
+| **`@getlocksmith/nextjs/server`** | `LocksmithServerClient`, `locksmithServerClientFromEnv`, `createLocksmithRouteHandlers`, `createLocksmithMiddleware` |
+| **`@getlocksmith/nextjs/client`** | `LocksmithAuthProvider`, `useLocksmithAuth`, `useLocksmithPoweredBy`, `LocksmithBffClient`, all form/OAuth/OIDC UI components, theme helpers |
+| **`@getlocksmith/nextjs`** | Shared **types**, **`LocksmithAuthError`**, **`locksmithEnvironmentFromApiKey`**, **`isSignInRequiresTotp`** |
+
+---
 
 ## Environment variables (server)
 
-- **`LOCKSMITH_API_KEY`** — project key (`lsm_live_…` or `lsm_sbx_…`).
-- **`LOCKSMITH_BASE_URL`** or **`NEXT_PUBLIC_LOCKSMITH_URL`** — Locksmith origin (optional; defaults to `https://getlocksmith.dev`).
+| Variable | Required | Description |
+|----------|----------|-------------|
+| **`LOCKSMITH_API_KEY`** | Yes (for server helpers) | Project key: `lsm_live_…` (Production) or `lsm_sbx_…` (Sandbox). |
+| **`LOCKSMITH_BASE_URL`** | No | Locksmith API origin. Falls back to **`NEXT_PUBLIC_LOCKSMITH_URL`**, then `https://getlocksmith.dev`. |
 
-## BFF route handlers (App Router)
+The **browser** must **not** receive the API key. All browser auth goes through your **BFF** (below) or public OAuth redirects.
 
-Keep the API key on the server. Tokens are stored in **httpOnly** cookies.
+---
 
-Create `app/api/locksmith/[[...path]]/route.ts`:
+## Architecture
 
-```typescript
+1. **Your Next app** exposes `POST/GET /api/locksmith/…` (or another base path) implemented with **`createLocksmithRouteHandlers`**. Those handlers call Locksmith with **`X-API-Key`** and set **`httpOnly`** cookies (`access` + `refresh` by default).
+2. **Client components** wrap the tree in **`LocksmithAuthProvider`** with the same **`routePrefix`**. Hooks and **`LocksmithBffClient`** call **`fetch(..., { credentials: 'include' })`** to that prefix.
+3. **Optional:** **`createLocksmithMiddleware`** validates a **Bearer** access token against Locksmith **`/api/auth/me`** and adds **`x-locksmith-user-*`** headers for API routes.
+
+---
+
+## BFF route handlers
+
+### Setup (App Router)
+
+Create a **catch-all** route so every subpath (`session`, `login`, `oauth/github`, …) is handled by one module:
+
+```typescript title="app/api/locksmith/[[...path]]/route.ts"
 import {
   createLocksmithRouteHandlers,
   locksmithServerClientFromEnv,
@@ -56,16 +83,56 @@ const { GET, POST } = createLocksmithRouteHandlers({
 export { GET, POST }
 ```
 
-Use a **catch-all** `[[...path]]` so paths like `/api/locksmith/session` and `/api/locksmith/login` resolve correctly.
+- **`[[...path]]`** is required so `login`, `session`, `oauth/exchange`, etc. resolve correctly.
+- **`routeBasePath`** must match the URL segment where you mounted the route (here `/api/locksmith`).
 
-**Free-plan branding:** GET `session` returns `poweredByLocksmith`. The BFF can call `GET /api/auth/sdk/branding` or you can set `accountPlan: 'FREE' | 'SOLO' | 'PRO'` on the handler config. See `LocksmithRouteHandlerConfig` types in the package.
+### Config (`LocksmithRouteHandlerConfig`)
 
-## Client provider and forms
+| Option | Description |
+|--------|-------------|
+| **`apiKey`** | Project API key (required unless you only use env helper). |
+| **`baseUrl`** | Locksmith origin (optional; same as server client). |
+| **`routeBasePath`** | Mount path for the BFF (default `'/api/locksmith'`). Must match **`LocksmithAuthProvider`** / **`LocksmithBffClient`** **`routePrefix`**. |
+| **`cookiePrefix`** | Prefix for cookie names (default `'locksmith'` → `locksmith_at`, `locksmith_rt`). Non-alphanumeric chars become `_`. |
+| **`accountPlan`** | `'FREE' \| 'SOLO' \| 'PRO'`. If set, **skips** `GET /api/auth/sdk/branding` and sets session **`poweredByLocksmith`** when plan is **`FREE`**. |
+| **`brandingFallbackPoweredBy`** | If **`accountPlan`** is unset and the branding HTTP call **fails**, use this boolean (default `false`). |
 
-```tsx
+### Cookies
+
+- **Access token** cookie: short max-age (matches token `expiresIn`).
+- **Refresh token** cookie: long-lived (60 days).
+- In **production**, cookies use **`Secure`**. **`SameSite=Lax`**, **`Path=/`**.
+
+### BFF HTTP surface (reference)
+
+All responses follow Locksmith’s envelope: success **`{ data: T }`**, error **`{ error, message }`**.
+
+| Method | Relative path | Purpose |
+|--------|----------------|---------|
+| **GET** | `session` | Current user from access cookie; refreshes via refresh cookie if needed. Includes **`poweredByLocksmith`**. |
+| **POST** | `login` | Body: `{ email, password }`. May return MFA challenge via Locksmith; BFF forwards shape for TOTP continuation. |
+| **POST** | `signup` | Body: `{ email, password, meta? }`. Sets session cookies on success. |
+| **POST** | `totp` | Body: `{ twoFactorToken, code }`. Completes password sign-in after MFA. |
+| **POST** | `logout` | Body: optional `{ refreshToken }`; clears cookies and revokes refresh server-side when possible. |
+| **POST** | `refresh` | Body: optional `{ refreshToken }`; uses refresh cookie if omitted. Rotates tokens; returns **`{ expiresIn }`**. (Not wrapped by **`LocksmithBffClient`** today — call with `fetch` if you need it.) |
+| **POST** | `oauth/:provider` | Body: optional `{ redirectUrl }`. Returns **`{ authorizationUrl }`**. |
+| **POST** | `oauth/exchange` | Body: `{ code }`. Exchanges OAuth code; sets session cookies. |
+| **POST** | `oidc/grant` | Body: `{ requestToken, approved, scopes? }`. When **`approved: true`**, requires valid access cookie to resolve **`userId`**. Returns **`{ redirectUrl }`**. |
+| **POST** | `passkey/login/options` | Body: `{ email }`. Returns WebAuthn options + **`challengeId`**. |
+| **POST** | `passkey/login/verify` | Body: `{ challengeId, email, response }`. Sets session cookies on success. |
+
+**GET** only implements **`session`**; any other GET returns 404.
+
+---
+
+## `LocksmithAuthProvider` and `useLocksmithAuth`
+
+Wrap client UI that should share session state:
+
+```tsx title="app/providers.tsx"
 'use client'
 
-import { LocksmithAuthProvider, LocksmithSignInForm, LocksmithTotpForm } from '@getlocksmith/nextjs/client'
+import { LocksmithAuthProvider } from '@getlocksmith/nextjs/client'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -76,132 +143,289 @@ export function Providers({ children }: { children: React.ReactNode }) {
 }
 ```
 
-```tsx
-import { LocksmithSignInForm, LocksmithSignUpForm, LocksmithTotpForm } from '@getlocksmith/nextjs/client'
+### Provider props
 
-export function LoginCard() {
-  return (
-    <>
-      <LocksmithSignInForm />
-      <LocksmithTotpForm />
-    </>
-  )
-}
-```
+Same as **`LocksmithBffClientOptions`**:
 
-## Themes
+| Prop | Description |
+|------|-------------|
+| **`routePrefix`** | BFF base path (default **`/api/locksmith`**). Must match **`createLocksmithRouteHandlers`** **`routeBasePath`**. |
+| **`origin`** | Defaults to same origin (`''`). Set full origin (e.g. `https://myapp.com`) if the browser calls a **different** host than the current page (unusual). |
 
-- **`theme="locksmith"`** (default) — dark steel + steel-blue accent, aligned with the marketing site.
-- **`theme="minimal"`** — light neutral card.
-- **`classNames`** — optional slots (`root`, `label`, `input`, `button`, `error`, `poweredBy`, …) for Tailwind or your CSS.
-- Helpers such as `locksmithFormThemeStyle` and `LocksmithFormShell` are exported from `@getlocksmith/nextjs/client`.
+On mount, the provider loads **`GET …/session`** once (`loading` → `false`).
 
-<Callout variant="note" title="Powered by Locksmith">
-  On the Free plan, built-in forms show a **Powered by Locksmith** footer. There is no prop to remove it; upgrade or configure <code>accountPlan</code> on the route handler so paid projects do not require it.
+### `useLocksmithAuth()` — full API
+
+| Member | Type | Description |
+|--------|------|-------------|
+| **`user`** | `UserMe \| null` | Signed-in user or `null`. |
+| **`loading`** | `boolean` | Initial session fetch in flight. |
+| **`error`** | `string \| null` | Last SDK error message (many methods also **throw** `LocksmithAuthError`). |
+| **`pendingTotpToken`** | `string \| null` | After password sign-in if MFA required; pass to **`LocksmithTotpForm`** / **`completeTotp`**. |
+| **`poweredByLocksmith`** | `boolean` | From **`session`**; when `true`, show **Powered by Locksmith** on Free-tier projects. |
+| **`refreshSession()`** | async | Re-runs **`GET session`**; updates **`user`** / **`poweredByLocksmith`**. |
+| **`signInWithPassword(email, password)`** | async → **`'signed_in' \| 'needs_totp'`** | Sets **`pendingTotpToken`** when MFA needed. |
+| **`completeTotp(code)`** | async | Completes MFA; requires **`pendingTotpToken`**. |
+| **`signUp(email, password, meta?)`** | async | Creates user and refreshes session. |
+| **`signOut()`** | async | Clears BFF session (always clears local user state). |
+| **`startOAuth(provider, redirectUrl?)`** | async | POSTs BFF then sets **`window.location.href`** to provider. |
+| **`completeOAuthExchange(code)`** | async | POSTs **`oauth/exchange`**; refreshes session. |
+| **`completeOidcConsent({ requestToken, approved, scopes? })`** | async → **`redirectUrl: string`** | POSTs **`oidc/grant`**; navigate with **`window.location.href = redirectUrl`**. |
+
+<Callout variant="note" title="Throws">
+  On failure, methods typically **set** **`error`** and **throw** **`LocksmithAuthError`** (see root import). Use `try/catch` in manual flows.
 </Callout>
 
-## Social OAuth (GitHub, Google, …)
+### `useLocksmithPoweredBy()`
 
-The BFF adds **`POST …/oauth/:provider`** (proxies Locksmith) and **`POST …/oauth/exchange`** to turn `?code=` into **httpOnly** session cookies. Configure the provider and redirect URLs in the Locksmith dashboard.
+Returns **`ctx?.poweredByLocksmith === true`** when inside the provider; **`false`** when outside the provider. Use for custom components that should mirror the built-in **Powered by** behavior.
 
-### Built-in components
+---
 
-Use **`LocksmithOAuthSignInButton`** to start the flow and **`LocksmithOAuthCallback`** on the page that receives `?code=`.
+## `LocksmithBffClient` (browser, no React context)
 
-**Callback page** (e.g. `app/auth/callback/page.tsx`):
+Use when you **cannot** use **`useLocksmithAuth`** but can still call **`fetch`** with **`credentials: 'include'`** (same site as the BFF).
 
-```tsx
-import { LocksmithOAuthCallback } from '@getlocksmith/nextjs/client'
-
-export default function AuthCallbackPage() {
-  return <LocksmithOAuthCallback redirectTo="/" />
-}
-```
-
-**Sign-in** — set `redirectUrl` to the **full URL** of that callback:
-
-```tsx
-import { LocksmithOAuthSignInButton } from '@getlocksmith/nextjs/client'
-
-export function GitHubSignIn() {
-  return (
-    <LocksmithOAuthSignInButton
-      provider="github"
-      redirectUrl="https://myapp.com/auth/callback"
-    >
-      Continue with GitHub
-    </LocksmithOAuthSignInButton>
-  )
-}
-```
-
-### Manual: hooks or `LocksmithBffClient`
-
-Inside **`LocksmithAuthProvider`**, use **`useLocksmithAuth()`**:
-
-- **`startOAuth(provider, redirectUrl?)`** — fetches `authorizationUrl` from the BFF and sets `window.location.href` (full-page redirect to GitHub/Google, etc.).
-- **`completeOAuthExchange(code)`** — `POST`s the code to `…/oauth/exchange`, sets cookies, refreshes session state. Call this on your callback route after reading `searchParams.get('code')` (e.g. in `useEffect`). Handle errors via the context `error` field or try/catch.
-
-```tsx
-'use client'
-
-import { useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useLocksmithAuth } from '@getlocksmith/nextjs/client'
-
-export function OAuthCallbackManual() {
-  const { completeOAuthExchange, error } = useLocksmithAuth()
-  const router = useRouter()
-  const code = useSearchParams().get('code')
-
-  useEffect(() => {
-    if (!code) return
-    void (async () => {
-      await completeOAuthExchange(code)
-      router.replace('/')
-    })()
-  }, [code, completeOAuthExchange, router])
-
-  if (error) return <p>{error}</p>
-  return <p>Completing sign-in…</p>
-}
-```
-
-```tsx
-'use client'
-
-import { useLocksmithAuth } from '@getlocksmith/nextjs/client'
-
-export function GitHubButtonManual() {
-  const { startOAuth } = useLocksmithAuth()
-  return (
-    <button type="button" onClick={() => void startOAuth('github', 'https://myapp.com/auth/callback')}>
-      Continue with GitHub
-    </button>
-  )
-}
-```
-
-**Without the provider** (same-origin fetch, `credentials: 'include'`), instantiate **`LocksmithBffClient`** with the same `routePrefix` / `origin` as your BFF:
-
-```tsx
+```typescript
 import { LocksmithBffClient } from '@getlocksmith/nextjs/client'
 
 const bff = new LocksmithBffClient({ routePrefix: '/api/locksmith' })
+```
 
+### Methods
+
+| Method | BFF route | Notes |
+|--------|-----------|-------|
+| **`session()`** | GET `session` | |
+| **`signIn(email, password)`** | POST `login` | Raw result may be MFA challenge — use **`isSignInRequiresTotp`** from **`@getlocksmith/nextjs`**. |
+| **`signUp({ email, password, meta? })`** | POST `signup` | |
+| **`completeTotp(twoFactorToken, code)`** | POST `totp` | |
+| **`initiateOAuth(provider, redirectUrl?)`** | POST `oauth/:provider` | |
+| **`exchangeOAuthCode(code)`** | POST `oauth/exchange` | |
+| **`oidcGrant({ requestToken, approved, scopes? })`** | POST `oidc/grant` | Send cookies when **`approved: true`**. |
+| **`signOut(refreshToken?)`** | POST `logout` | |
+| **`passkeyLoginOptions(email)`** | POST `passkey/login/options` | |
+| **`passkeyLoginVerify({ challengeId, email, response })`** | POST `passkey/login/verify` | |
+
+There is **no** `refresh()` wrapper on the class; you can **`fetch`** **`POST …/refresh`** manually if needed.
+
+---
+
+## Theming and layout primitives
+
+### Themes
+
+- **`locksmith`** (default) — dark surface, steel-blue accent (aligned with getlocksmith.dev).
+- **`minimal`** — light neutral card.
+
+Pass **`theme="locksmith"`** or **`theme="minimal"`** to any themed component.
+
+### `classNames` (`LocksmithFormClassNames`)
+
+Optional Tailwind or CSS classes merged onto slots:
+
+| Slot | Typical use |
+|------|-------------|
+| **`root`** | Outer card (`LocksmithFormShell` / `LocksmithFormSurface`) |
+| **`field`** | Field group |
+| **`label`**, **`input`**, **`button`** | Controls |
+| **`error`** | Alert text |
+| **`poweredBy`** | Footer link block |
+
+Use **`mergeFormClasses`** from **`@getlocksmith/nextjs/client`** to combine strings safely.
+
+### Inline style helpers
+
+Exported for **fully custom** UIs that should still match tokens:
+
+- **`locksmithFormThemeStyle(theme)`** — full card `CSSProperties` + CSS variables.
+- **`LOCKSMITH_FORM_KEYFRAMES_CSS`** — spinner animation (injected by **`LocksmithFormSurface`** / **`LocksmithFormShell`**).
+- **`labelStyle`**, **`inputStyle`**, **`inputStyleLarge`**, **`primaryButtonStyle`**, **`outlineButtonStyle`**, **`errorStyle`**, **`fieldStackStyle`**, etc.
+
+See `locksmithMarketingFontNote` for matching **Barlow** fonts on marketing pages.
+
+### `LocksmithFormSurface` and `LocksmithFormShell`
+
+- **`LocksmithFormSurface`** — themed container + keyframes; **no** powered-by footer.
+- **`LocksmithFormShell`** — same as surface + **`poweredByLocksmith`** boolean; when `true`, appends **`LocksmithPoweredBy`**.
+
+Use these to build **custom** forms while staying on-brand.
+
+### `LocksmithPoweredBy`
+
+Standalone footer link component. On Free plan, **do not** hide attribution in production unless the project is paid / **`accountPlan`** is configured so **`poweredByLocksmith`** is false.
+
+---
+
+## Free plan: “Powered by Locksmith”
+
+- **`GET /api/auth/sdk/branding`** on Locksmith (same API key) returns **`{ poweredByLocksmith }`**, or set **`accountPlan`** on **`createLocksmithRouteHandlers`** to skip the HTTP call.
+- The BFF caches branding **per API key** for about **5 minutes**. After changing plan in the DB, wait or restart the server if the footer does not update immediately.
+
+<Callout variant="note" title="No opt-out on Free">
+  Built-in components respect **`poweredByLocksmith`** from session. There is **no** prop to remove the footer on Free; upgrade the account or set **`accountPlan`** appropriately for development.
+</Callout>
+
+---
+
+## Sign-in (`LocksmithSignInForm`)
+
+### Premade component
+
+```tsx
+import { LocksmithSignInForm } from '@getlocksmith/nextjs/client'
+
+export function LoginPage() {
+  return (
+    <LocksmithSignInForm
+      theme="locksmith"
+      oauthRedirectUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`}
+      socialProviders={['github', 'google']}
+    />
+  )
+}
+```
+
+### Props (high level)
+
+| Prop | Description |
+|------|-------------|
+| **`theme`**, **`classNames`** | Styling (see above). |
+| **`title`**, **`description`** | Card header copy. |
+| **`emailLabel`**, **`passwordLabel`**, **`submitLabel`** | Field / button labels. |
+| **`forgotPasswordLabel`**, **`forgotPasswordHref`** | Forgot link. |
+| **`signUpLabel`**, **`signUpHref`**, **`signUpLinkText`** | Sign-up promo row. |
+| **`socialProviders`** | Array of **`SocialProvider`**: `google`, `github`, `apple`, `microsoft`, `x`, `discord`, `linkedin`. |
+| **`onSocialLogin`** | If set, social buttons call this instead of default **`startOAuth`**. |
+| **`oauthRedirectUrl`** | Passed to **`startOAuth`** for each provider (must be absolute URL of your callback page). |
+| **`showSocialDivider`** | Default `true`; “or continue with email” rule. |
+| **`onSuccess`** | Fires when password sign-in completes **without** MFA. If MFA required, show **`LocksmithTotpForm`** first. |
+| **`onError`** | Validation / Locksmith error message string. |
+
+### Manual sign-in (hook)
+
+```tsx
+const { signInWithPassword, error } = useLocksmithAuth()
+
+const outcome = await signInWithPassword(email, password)
+if (outcome === 'needs_totp') {
+  /* show TOTP UI */
+}
+```
+
+### Manual sign-in (`LocksmithBffClient`)
+
+Use **`bff.signIn`** + **`isSignInRequiresTotp`** from **`@getlocksmith/nextjs`**.
+
+---
+
+## Sign-up (`LocksmithSignUpForm`)
+
+### Premade component
+
+Includes optional **name** field (stored in **`meta.name`**), **confirm password**, **password strength** meter, optional **terms** slot, and the same **social** grid pattern as sign-in.
+
+### Notable props
+
+| Prop | Description |
+|------|-------------|
+| **`showNameField`** | Adds name → **`meta.name`**. |
+| **`showConfirmPassword`** | Second password field with match validation. |
+| **`showPasswordStrength`** | Default `true`; visual rules (length, upper, lower, number). |
+| **`termsText`** | `ReactNode` below submit (e.g. checkbox copy). |
+| **`socialProviders`**, **`onSocialLogin`**, **`oauthRedirectUrl`**, **`showSocialDivider`** | Same idea as sign-in. |
+| **`onSuccess`**, **`onError`** | After **`signUp`** succeeds, session is refreshed. |
+
+### Manual sign-up
+
+```tsx
+const { signUp } = useLocksmithAuth()
+await signUp(email, password, { plan: 'trial' })
+```
+
+---
+
+## TOTP / MFA (`LocksmithTotpForm`)
+
+Renders **only when** **`pendingTotpToken`** is set (after **`signInWithPassword`** returns **`needs_totp`**). Typically place **below** **`LocksmithSignInForm`** on the same page.
+
+### Props
+
+| Prop | Description |
+|------|-------------|
+| **`codeLength`** | `6` or `8` (default `6`). |
+| **`autoSubmit`** | Default `true`; submits when code length reached. |
+| **`onBack`** | Shows ghost “back” control when set. |
+| **`title`**, **`description`**, **`label`**, **`submitLabel`**, **`backLabel`** | Copy. |
+
+### Manual MFA
+
+```tsx
+const { completeTotp, pendingTotpToken } = useLocksmithAuth()
+if (!pendingTotpToken) return null
+await completeTotp(code)
+```
+
+---
+
+## Social OAuth
+
+**Dashboard:** enable providers and allowed redirect URLs on the Locksmith project.
+
+### Flow
+
+1. **`startOAuth`** / **`initiateOAuth`** → redirect browser to provider.
+2. User returns to your app with **`?code=`**.
+3. **`completeOAuthExchange`** / **`exchangeOAuthCode`** → BFF sets cookies.
+
+### Premade pieces
+
+| Component | Role |
+|----------|------|
+| **`LocksmithOAuthSignInButton`** | Single provider button inside a small **`LocksmithFormSurface`**; uses **`startOAuth`**; optional **Powered by** footer. |
+| **`LocksmithOAuthCallback`** | Reads **`code`** from **`useSearchParams`**, exchanges it, shows loading/success/error states, then **`router.replace(redirectTo)`**. Wraps **`Suspense`**. |
+| **`LocksmithSignInForm` / `LocksmithSignUpForm`** | **`socialProviders`** + **`LocksmithSocialButtonGroup`** styling. |
+| **`LocksmithSocialButton`**, **`LocksmithSocialButtonGroup`** | Lower-level; use in custom layouts. |
+
+### `LocksmithOAuthSignInButton` props
+
+**`provider`** (string, e.g. **`github`**), **`redirectUrl`** (absolute callback URL), **`theme`**, **`classNames`**, **`children`**, **`onSuccess`** (if redirect fails), **`onError`**.
+
+### `LocksmithOAuthCallback` props
+
+**`redirectTo`** (default **`/`**), **`theme`**, **`classNames`**, **`className`**, **`onSuccess`**, **`onError`**, and copy overrides: **`title`**, **`description`**, **`successTitle`**, **`successDescription`**, **`errorTitle`**, **`errorDescription`**.
+
+### Manual OAuth (hook)
+
+See **`startOAuth`** / **`completeOAuthExchange`** in the **`useLocksmithAuth`** table.
+
+### Manual OAuth (`LocksmithBffClient`)
+
+```typescript
 const { authorizationUrl } = await bff.initiateOAuth('github', 'https://myapp.com/auth/callback')
 window.location.href = authorizationUrl
 
-// On the callback page:
-Wrap callback pages that use **`useSearchParams()`** in a React **`Suspense`** boundary if Next.js warns during static generation (the premade **`LocksmithOAuthCallback`** does this for you).
+// Callback page:
+await bff.exchangeOAuthCode(code)
+```
 
-## Hosted SSO / OIDC consent (Pro)
+### Suspense
 
-Locksmith’s OIDC **`authorize`** endpoint redirects the user to your app’s **login URL** with query params: **`request_token`**, **`app_name`**, **`scope`**. After the user signs in, you approve or deny; the BFF **`POST …/oidc/grant`** completes the flow and returns a **`redirectUrl`** the browser must open (authorization `code` or OAuth error query params for the OIDC client).
+Any component using **`useSearchParams()`** (including **`LocksmithOAuthCallback`** and **`LocksmithOidcConsent`**) must be under **`<Suspense>`** if Next.js reports static generation issues. The premade components include an inner or outer **`Suspense`** boundary.
 
-### Built-in component
+---
 
-Mount **`LocksmithOidcConsent`** on that login URL. Use **`signInSlot`** for your own sign-in UI (e.g. `<LocksmithSignInForm />` and `<LocksmithTotpForm />`).
+## Hosted SSO / OIDC consent (`LocksmithOidcConsent`)
+
+**Pro** feature on Locksmith: OIDC **`authorize`** redirects the user to your **`loginUrl`** with query params:
+
+| Param | Meaning |
+|-------|---------|
+| **`request_token`** | Opaque token for **`oidc/grant`**. |
+| **`app_name`** | Client display name. |
+| **`scope`** | Space-separated OIDC scopes (e.g. `openid email profile`). |
+
+### Premade component
 
 ```tsx
 import {
@@ -213,9 +437,10 @@ import {
 export default function OidcLoginPage() {
   return (
     <LocksmithOidcConsent
+      theme="locksmith"
       signInSlot={
         <>
-          <LocksmithSignInForm />
+          <LocksmithSignInForm oauthRedirectUrl={/* … */} />
           <LocksmithTotpForm />
         </>
       }
@@ -224,73 +449,19 @@ export default function OidcLoginPage() {
 }
 ```
 
-### Manual: hooks or `LocksmithBffClient`
+**Behavior:** invalid / loading / MFA-pending / signed-out / main consent UI with scope checkboxes (**`openid`** fixed on). **Allow** / **Deny** call **`completeOidcConsent`** and set **`window.location.href`** to the returned **`redirectUrl`**.
 
-Read **`request_token`**, **`app_name`**, and **`scope`** from the URL (e.g. `useSearchParams()`). Build your own consent UI.
+### Props
 
-Inside **`LocksmithAuthProvider`**, call **`completeOidcConsent({ requestToken, approved, scopes? })`**. It returns a **`redirectUrl`** string — assign **`window.location.href`** to send the user back to the OIDC client (Slack, custom app, etc.).
+**`theme`**, **`classNames`**, **`className`**, **`signInSlot`**, **`onSuccess`** (before redirect), **`onError`**.
 
-- **`approved: false`** — no session required; omit `scopes`.
-- **`approved: true`** — the user must have a valid BFF session (access cookie). Pass **`scopes`** as the subset of requested scopes you allow (must include **`openid`**).
+### Manual OIDC consent
 
-```tsx
-'use client'
-
-import { useSearchParams } from 'next/navigation'
-import { useLocksmithAuth } from '@getlocksmith/nextjs/client'
-
-export function OidcDenyManual() {
-  const token = useSearchParams().get('request_token') ?? ''
-  const { completeOidcConsent } = useLocksmithAuth()
-
-  return (
-    <button type="button" onClick={() => void completeOidcConsent({ requestToken: token, approved: false }).then((url) => {
-      window.location.href = url
-    })}>
-      Deny access
-    </button>
-  )
-}
-```
+Read params with **`useSearchParams`**, build UI, then:
 
 ```tsx
-'use client'
-
-import { useSearchParams } from 'next/navigation'
-import { useLocksmithAuth } from '@getlocksmith/nextjs/client'
-
-export function OidcAllowManual() {
-  const token = useSearchParams().get('request_token') ?? ''
-  const scopeParam = useSearchParams().get('scope') ?? 'openid'
-  const requested = scopeParam.split(/\s+/).filter(Boolean)
-  const { completeOidcConsent } = useLocksmithAuth()
-
-  return (
-    <button
-      type="button"
-      onClick={() =>
-        void completeOidcConsent({
-          requestToken: token,
-          approved: true,
-          scopes: requested,
-        }).then((url) => {
-          window.location.href = url
-        })
-      }
-    >
-      Allow
-    </button>
-  )
-}
-```
-
-**Without the provider**, use **`LocksmithBffClient.oidcGrant`** (cookies must be sent if `approved` is true):
-
-```tsx
-import { LocksmithBffClient } from '@getlocksmith/nextjs/client'
-
-const bff = new LocksmithBffClient({ routePrefix: '/api/locksmith' })
-const { redirectUrl } = await bff.oidcGrant({
+const { completeOidcConsent } = useLocksmithAuth()
+const redirectUrl = await completeOidcConsent({
   requestToken,
   approved: true,
   scopes: ['openid', 'email'],
@@ -298,30 +469,104 @@ const { redirectUrl } = await bff.oidcGrant({
 window.location.href = redirectUrl
 ```
 
-## Middleware
+**Deny:** **`approved: false`**, no session required. **Allow:** user must have BFF session; **`scopes`** must include **`openid`**.
 
-Validates `Authorization: Bearer <access_token>` via `/api/auth/me` and sets `x-locksmith-user-*` headers:
+**`LocksmithBffClient.oidcGrant`** — same body as BFF; send cookies when **`approved: true`**.
 
-```typescript
-import { createLocksmithMiddleware, locksmithServerClientFromEnv } from '@getlocksmith/nextjs/server'
+---
+
+## Passkey sign-in (`LocksmithPasskeySignInButton`)
+
+Requires **`@simplewebauthn/browser`**. Your site origin must appear in the project’s **CORS allowed origins** in Locksmith.
+
+- Takes **`bff`**: **`LocksmithBffClientOptions`** (must match your BFF mount).
+- Takes **`email`** (user must have registered a passkey).
+- On success: calls **`onSuccess`**, then **`window.location.reload()`** so **`LocksmithAuthProvider`** picks up the new cookie session.
+
+**Not included in the package:** passkey **registration** UI — use **`LocksmithServerClient`** **`passkeyRegisterOptions` / `passkeyRegisterVerify`** from a **server** context with the user’s access token, or call Locksmith REST directly.
+
+---
+
+## Middleware (`createLocksmithMiddleware`)
+
+Validates **`Authorization: Bearer <access_token>`** using **`LocksmithServerClient.getUser`** (Locksmith **`/api/auth/me`**). On success, forwards:
+
+- **`x-locksmith-user-id`**
+- **`x-locksmith-user-email`**
+- **`x-locksmith-user-role`**
+
+On missing/invalid token, returns **401 JSON** `{ error }`.
+
+```typescript title="middleware.ts"
+import {
+  createLocksmithMiddleware,
+  locksmithServerClientFromEnv,
+} from '@getlocksmith/nextjs/server'
 
 const client = locksmithServerClientFromEnv()
 
 export default createLocksmithMiddleware(client)
 ```
 
-## Direct server calls (no BFF)
+Restrict which routes run this middleware with Next.js **`export const config = { matcher: [...] }`** as usual.
 
-```typescript
-import { locksmithServerClientFromEnv } from '@getlocksmith/nextjs/server'
+---
 
-const locksmith = locksmithServerClientFromEnv()
-const result = await locksmith.signIn({ email: '…', password: '…' })
-```
+## `LocksmithServerClient` (server-only)
 
-Use only in **Route Handlers** or **Server Actions** — never expose the key to the client.
+Constructed with **`{ apiKey, baseUrl? }`**. **`environment`** is derived from the key prefix (`lsm_live_` → production, `lsm_sbx_` → Sandbox).
+
+**Use for:** Server Actions, Route Handlers, cron jobs, middleware, or any code that can hold the API key.
+
+<details>
+<summary><strong>Method list</strong> (HTTP mapping)</summary>
+
+| Method | Locksmith API |
+|--------|----------------|
+| **`signUp`**, **`signIn`**, **`completeSignInTotp`**, **`signOut`**, **`refresh`**, **`getUser`** | Core auth |
+| **`getSdkBranding`** | **`GET /api/auth/sdk/branding`** |
+| **`verifyAccessToken`** | Local JWT verify (RS256; default issuer `https://getlocksmith.dev`) |
+| **`totpStart`**, **`totpConfirm`**, **`totpDisable`** | Authenticator enrollment (bearer) |
+| **`passkeyRegisterOptions`**, **`passkeyRegisterVerify`**, **`passkeyLoginOptions`**, **`passkeyLoginVerify`**, **`passkeyList`**, **`passkeyRevoke`** | WebAuthn |
+| **`sendMagicLink`**, **`verifyMagicLink`** | Magic link |
+| **`sendPasswordReset`**, **`updatePassword`** | Password reset |
+| **`initiateOAuth`**, **`exchangeOAuthCode`** | Social OAuth (server-side) |
+| **`completeOidcGrant`** | OIDC grant completion |
+
+</details>
+
+**`locksmithServerClientFromEnv()`** reads **`LOCKSMITH_API_KEY`** and optional base URL env vars; **throws** if the key is missing.
+
+---
+
+## Root package: types and errors
+
+From **`@getlocksmith/nextjs`**:
+
+- **`LocksmithAuthError`** — **`code`**, **`message`**, **`status`**.
+- **`isSignInRequiresTotp`** — narrows **`signIn`** result.
+- Types: **`UserMe`**, **`AuthTokens`**, **`SignInRequiresTotp`**, **`SignUpResult`**, **`OidcGrantResult`**, **`OAuthInitiateResult`**, **`TokenPayload`**, **`SdkBranding`**, **`LocksmithEnvironment`**, etc.
+
+**`locksmithEnvironmentFromApiKey(key)`** — returns **`'production' | 'sandbox'`** or throws if prefix invalid.
+
+---
+
+## Choosing “premade” vs “manual”
+
+| Goal | Premade | Manual |
+|------|---------|--------|
+| Email/password + MFA | `LocksmithSignInForm` + `LocksmithTotpForm` | `signInWithPassword` + `completeTotp` |
+| Sign up | `LocksmithSignUpForm` | `signUp` |
+| Social login button | `LocksmithOAuthSignInButton` or social row on forms | `startOAuth` / `bff.initiateOAuth` |
+| OAuth return | `LocksmithOAuthCallback` | `completeOAuthExchange` in `useEffect` |
+| OIDC consent | `LocksmithOidcConsent` | `completeOidcConsent` / `bff.oidcGrant` |
+| Passkey | `LocksmithPasskeySignInButton` | `bff.passkeyLoginOptions` + `@simplewebauthn/browser` + `bff.passkeyLoginVerify` |
+| Custom styled form | `LocksmithFormShell` + theme helpers | Same hooks / `LocksmithBffClient` |
+| Server CRUD / admin | N/A | `LocksmithServerClient` only |
+
+---
 
 ## Reference
 
-- [npm](https://www.npmjs.com/package/@getlocksmith/nextjs)
-- [API reference](/api/generated/locksmith-public-api)
+- [npm — `@getlocksmith/nextjs`](https://www.npmjs.com/package/@getlocksmith/nextjs)
+- [Locksmith public API](/api/generated/locksmith-public-api)
