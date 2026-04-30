@@ -1,0 +1,49 @@
+---
+title: Rust
+sidebar_position: 4
+---
+
+# Rust (`getlocksmith`)
+
+```toml
+[dependencies]
+getlocksmith = "1"
+```
+
+## Quick start
+
+```rust
+use getlocksmith::{LocksmithClient, SignInParams};
+
+#[tokio::main]
+async fn main() {
+    let auth = LocksmithClient::new("lsm_live_…");
+
+    let session = auth.sign_in(SignInParams {
+        email: "user@example.com".into(),
+        password: "secure-password".into(),
+    }).await.unwrap();
+
+    println!("{}", session.access_token);
+}
+```
+
+## Core methods
+
+```rust
+// Sign up
+let session = auth.sign_up(SignUpParams { email, password, meta: None }).await?;
+
+// Refresh
+let next = auth.refresh(&session.refresh_token).await?;
+
+// Sign out
+auth.sign_out(&next.refresh_token).await?;
+
+// Get user
+let me = auth.get_user(&session.access_token).await?;
+```
+
+## Reference
+
+[crates.io/crates/getlocksmith](https://crates.io/crates/getlocksmith)

@@ -1,0 +1,129 @@
+---
+title: Next.js
+sidebar_position: 1
+---
+
+import { Callout } from '@site/src/components/Callout'
+
+# Next.js (`@getlocksmith/nextjs`)
+
+Next.js integration for Locksmith: **server** client (API key), **cookie BFF** route handlers, **middleware**, and **client** React provider with themed sign-in, sign-up, TOTP, and passkey UI.
+
+For plain Node or non-Next servers, use the [TypeScript SDK](/sdks/typescript) (`@getlocksmith/sdk`).
+
+## Install
+
+```bash
+npm install @getlocksmith/nextjs next react react-dom
+```
+
+Passkeys (optional):
+
+```bash
+npm install @simplewebauthn/browser
+```
+
+## Entry points
+
+| Import | Contents |
+|--------|----------|
+| `@getlocksmith/nextjs/server` | `LocksmithServerClient`, `createLocksmithRouteHandlers`, `createLocksmithMiddleware`, `locksmithServerClientFromEnv` |
+| `@getlocksmith/nextjs/client` | `LocksmithAuthProvider`, forms, `LocksmithBffClient`, theme helpers |
+| `@getlocksmith/nextjs` | Shared types, `LocksmithAuthError`, `locksmithEnvironmentFromApiKey` |
+
+## Environment variables (server)
+
+- **`LOCKSMITH_API_KEY`** — project key (`lsm_live_…` or `lsm_sbx_…`).
+- **`LOCKSMITH_BASE_URL`** or **`NEXT_PUBLIC_LOCKSMITH_URL`** — Locksmith origin (optional; defaults to `https://getlocksmith.dev`).
+
+## BFF route handlers (App Router)
+
+Keep the API key on the server. Tokens are stored in **httpOnly** cookies.
+
+Create `app/api/locksmith/[[...path]]/route.ts`:
+
+```typescript
+import {
+  createLocksmithRouteHandlers,
+  locksmithServerClientFromEnv,
+} from '@getlocksmith/nextjs/server'
+
+const { GET, POST } = createLocksmithRouteHandlers({
+  ...locksmithServerClientFromEnv(),
+  routeBasePath: '/api/locksmith',
+})
+
+export { GET, POST }
+```
+
+Use a **catch-all** `[[...path]]` so paths like `/api/locksmith/session` and `/api/locksmith/login` resolve correctly.
+
+**Free-plan branding:** GET `session` returns `poweredByLocksmith`. The BFF can call `GET /api/auth/sdk/branding` or you can set `accountPlan: 'FREE' | 'SOLO' | 'PRO'` on the handler config. See `LocksmithRouteHandlerConfig` types in the package.
+
+## Client provider and forms
+
+```tsx
+'use client'
+
+import { LocksmithAuthProvider, LocksmithSignInForm, LocksmithTotpForm } from '@getlocksmith/nextjs/client'
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <LocksmithAuthProvider routePrefix="/api/locksmith">
+      {children}
+    </LocksmithAuthProvider>
+  )
+}
+```
+
+```tsx
+import { LocksmithSignInForm, LocksmithSignUpForm, LocksmithTotpForm } from '@getlocksmith/nextjs/client'
+
+export function LoginCard() {
+  return (
+    <>
+      <LocksmithSignInForm />
+      <LocksmithTotpForm />
+    </>
+  )
+}
+```
+
+## Themes
+
+- **`theme="locksmith"`** (default) — dark steel + steel-blue accent, aligned with the marketing site.
+- **`theme="minimal"`** — light neutral card.
+- **`classNames`** — optional slots (`root`, `label`, `input`, `button`, `error`, `poweredBy`, …) for Tailwind or your CSS.
+- Helpers such as `locksmithFormThemeStyle` and `LocksmithFormShell` are exported from `@getlocksmith/nextjs/client`.
+
+<Callout variant="note" title="Powered by Locksmith">
+  On the Free plan, built-in forms show a **Powered by Locksmith** footer. There is no prop to remove it; upgrade or configure <code>accountPlan</code> on the route handler so paid projects do not require it.
+</Callout>
+
+## Middleware
+
+Validates `Authorization: Bearer <access_token>` via `/api/auth/me` and sets `x-locksmith-user-*` headers:
+
+```typescript
+import { createLocksmithMiddleware, locksmithServerClientFromEnv } from '@getlocksmith/nextjs/server'
+
+const client = locksmithServerClientFromEnv()
+
+export default createLocksmithMiddleware(client)
+```
+
+## Direct server calls (no BFF)
+
+```typescript
+import { locksmithServerClientFromEnv } from '@getlocksmith/nextjs/server'
+
+const locksmith = locksmithServerClientFromEnv()
+const result = await locksmith.signIn({ email: '…', password: '…' })
+```
+
+Use only in **Route Handlers** or **Server Actions** — never expose the key to the client.
+
+## Reference
+
+- [npm](https://www.npmjs.com/package/@getlocksmith/nextjs)
+- [API reference](/api/generated/locksmith-public-api)

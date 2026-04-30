@@ -1,0 +1,38 @@
+---
+title: Dart
+sidebar_position: 14
+---
+
+# Dart (`locksmith_dart`)
+
+```yaml
+dependencies:
+  locksmith_dart: ^0.1.0
+```
+
+```bash
+dart pub get
+```
+
+**Dart 3.5+**.
+
+## Quick start
+
+```dart
+import 'dart:io';
+
+import 'package:locksmith_dart/locksmith_dart.dart';
+
+final c = LocksmithClient(apiKey: Platform.environment['LOCKSMITH_API_KEY']!);
+
+final data = await c.signIn('user@example.com', 'secure-password');
+final me = await c.getUser(data['accessToken'] as String);
+```
+
+## Local JWT verification
+
+```dart
+final payload = c.verifyToken(accessToken, publicKeyPem);
+```
+
+[API reference](/api/generated/locksmith-public-api)

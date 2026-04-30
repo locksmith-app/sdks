@@ -1,0 +1,56 @@
+---
+title: Go
+sidebar_position: 3
+---
+
+# Go (`sdk-go`)
+
+```bash
+go get github.com/locksmith-app/sdk-go
+```
+
+## Quick start
+
+```go
+package main
+
+import (
+    "fmt"
+    locksmith "github.com/locksmith-app/sdk-go"
+)
+
+func main() {
+    auth := locksmith.NewClient(locksmith.Config{
+        APIKey: "lsm_live_…",
+    })
+
+    session, err := auth.SignIn(locksmith.SignInParams{
+        Email:    "user@example.com",
+        Password: "secure-password",
+    })
+    if err != nil {
+        panic(err)
+    }
+    fmt.Println(session.AccessToken)
+}
+```
+
+## Core methods
+
+```go
+// Sign up
+session, err := auth.SignUp(locksmith.SignUpParams{Email: "…", Password: "…"})
+
+// Refresh
+next, err := auth.Refresh(session.RefreshToken)
+
+// Sign out
+err = auth.SignOut(next.RefreshToken)
+
+// Get user
+me, err := auth.GetUser(session.AccessToken)
+```
+
+## Reference
+
+[pkg.go.dev/github.com/locksmith-app/sdk-go](https://pkg.go.dev/github.com/locksmith-app/sdk-go)

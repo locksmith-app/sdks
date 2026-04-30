@@ -1,0 +1,28 @@
+---
+title: Rate limits
+sidebar_position: 3
+---
+
+# Rate limits
+
+Locksmith applies **rate limits** to sensitive public endpoints to reduce abuse. When exceeded, the API returns **HTTP 429** with error code `rate_limited` and a JSON `{ "error", "message" }` body.
+
+## Representative limits
+
+Limits can evolve; treat this table as illustrative and refer to production behavior and headers if documented.
+
+| Endpoint | Typical window | Typical limit | Key |
+|----------|----------------|--------------|-----|
+| `POST /api/auth/signup` | 1 hour | 10 | IP |
+| `POST /api/auth/login` | 15 minutes | 10 | IP + email |
+| `POST /api/auth/magic-link` | 1 hour | 5 | IP + email |
+| `POST /api/auth/refresh` | 1 minute | 30 | IP |
+| `POST /api/auth/password/reset` | 1 hour | 5 | IP + email |
+
+## Client guidance
+
+- **Back off** with exponential retry and jitter on `429`.
+- **Do not** hammer magic-link or password-reset endpoints — they are intentionally strict.
+- **Login** limits are often keyed by IP and email; avoid shared-NAT abuse patterns in tests.
+
+See also the introduction in the [API reference](/api/generated/locksmith-public-api) overview text for the same table in context.

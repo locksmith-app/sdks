@@ -1,0 +1,28 @@
+---
+title: Swift
+sidebar_position: 16
+---
+
+import { Callout } from '@site/src/components/Callout'
+
+# Swift (`Locksmith`)
+
+**Swift 5.9+** (Swift Package Manager). Add the package URL from your published `sdk-swift` repository, product **`Locksmith`**.
+
+## Quick start
+
+```swift
+import Locksmith
+
+let client = try LocksmithClient(apiKey: ProcessInfo.processInfo.environment["LOCKSMITH_API_KEY"]!)
+
+let bundle = try await client.signIn(email: "user@example.com", password: "secure-password")
+let access = bundle["accessToken"] as! String
+let me = try await client.getUser(accessToken: access)
+```
+
+<Callout variant="note" title="JWT verification">
+  <code>decodeTokenPayload</code> helps validate issuer on the payload; for full RS256 verification in production, use a JOSE library or Security.framework (see SDK notes).
+</Callout>
+
+[API reference](/api/generated/locksmith-public-api)

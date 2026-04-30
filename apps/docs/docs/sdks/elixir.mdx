@@ -1,0 +1,37 @@
+---
+title: Elixir
+sidebar_position: 15
+---
+
+# Elixir (`locksmith_ex`)
+
+`mix.exs`:
+
+```elixir
+{:locksmith_ex, "~> 0.1"}
+```
+
+```bash
+mix deps.get
+```
+
+**Elixir 1.15+**.
+
+## Quick start
+
+```elixir
+c = Locksmith.new(System.fetch_env!("LOCKSMITH_API_KEY"))
+
+data = Locksmith.sign_in(c, "user@example.com", "secure-password")
+%{"accessToken" => at} = data
+
+user = Locksmith.get_user(c, at)
+```
+
+## Local JWT verification
+
+```elixir
+claims = Locksmith.verify_token(access_token, public_key_pem)
+```
+
+[API reference](/api/generated/locksmith-public-api)

@@ -1,0 +1,47 @@
+---
+title: Authentication overview
+sidebar_position: 1
+---
+
+import { AuthHeader } from '@site/src/components/AuthHeader'
+import { Callout } from '@site/src/components/Callout'
+
+# Authentication
+
+Locksmith authenticates **two different actors**:
+
+1. **Your backend** — with a project **API key** (`X-API-Key`).
+2. **End users** — with **JWT access tokens** and **refresh tokens** issued after sign-in, sign-up, magic link, or OAuth.
+
+## API key (project + environment)
+
+Use the key only on servers you control. The prefix selects the environment — no separate `environment` field.
+
+<AuthHeader />
+
+## End-user access token (JWT)
+
+- **Algorithm:** RS256, signed with the project key for that environment.
+- **Lifetime:** Configurable per project (default similar to 15 minutes).
+- **Payload:** `sub` (user id), `email`, `role`, `meta`, `environment`, `aud` (project id), etc.
+- **Verification:** Use your project’s **public PEM** from the dashboard — you can validate locally without calling Locksmith on every request. See [API reference](/api/generated/locksmith-public-api) and language SDK pages for `verifyToken` helpers.
+
+## Refresh tokens
+
+- Opaque tokens, stored **hashed** server-side; rotated on each use.
+- Exchange via `POST /api/auth/refresh` with `X-API-Key` and body `{ "refreshToken": "…" }`.
+- On replay detection, sessions for that user can be revoked — treat `invalid_refresh_token` as force re-login.
+
+## Sessions in browsers
+
+- **SPA:** Prefer your backend holding refresh tokens and setting **httpOnly** cookies, or use a BFF — avoid long-lived secrets in `localStorage` when possible.
+- **Next.js:** Use [`@getlocksmith/nextjs`](/frameworks/nextjs) so the BFF sets httpOnly cookies and the browser never sees the project API key.
+
+## OAuth and OIDC
+
+- **OAuth:** Initiate on the server, redirect the user to the IdP, then exchange the code with `POST /api/auth/oauth/token` (see API tags **OAuth**).
+- **Hosted OIDC (Pro):** Your project can act as an OIDC provider; discovery and grant bridge are documented under the **OIDC** operations in the API reference.
+
+<Callout variant="note" title="Sandbox">
+  The sandbox environment is labeled **Sandbox** in product and docs — not “development” or “dev”. API prefix is <code>lsm_sbx_</code>.
+</Callout>

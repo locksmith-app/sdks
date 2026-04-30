@@ -1,0 +1,31 @@
+---
+title: Java
+sidebar_position: 12
+---
+
+# Java (`app.locksmith:locksmith-java`)
+
+**Java 17+**. Maven coordinates (example):
+
+```xml
+<dependency>
+  <groupId>app.locksmith</groupId>
+  <artifactId>locksmith-java</artifactId>
+  <version>0.1.0</version>
+</dependency>
+```
+
+## Quick start
+
+```java
+import app.locksmith.LocksmithClient;
+import com.fasterxml.jackson.databind.JsonNode;
+
+try (var c = new LocksmithClient(System.getenv("LOCKSMITH_API_KEY"))) {
+    JsonNode data = c.signIn("user@example.com", "secure-password");
+    String access = data.get("accessToken").asText();
+    JsonNode user = c.getUser(access);
+}
+```
+
+[API reference](/api/generated/locksmith-public-api)

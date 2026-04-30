@@ -1,0 +1,39 @@
+---
+title: PHP
+sidebar_position: 10
+---
+
+import { Callout } from '@site/src/components/Callout'
+
+# PHP (`locksmith/sdk-php`)
+
+```bash
+composer require locksmith/sdk-php
+```
+
+**PHP 8.2+** with `ext-json`. Methods return the inner **`data`** object from Locksmith’s JSON envelope.
+
+## Quick start
+
+```php
+<?php
+
+use Locksmith\LocksmithClient;
+
+$client = new LocksmithClient(getenv('LOCKSMITH_API_KEY'));
+
+$data = $client->signIn('user@example.com', 'secure-password');
+$user = $client->getUser($data['accessToken']);
+```
+
+## Local JWT verification
+
+```php
+$payload = $client->verifyTokenLocal($accessToken, $publicKeyPem);
+```
+
+<Callout variant="tip" title="Registry">
+  Published as <code>locksmith/sdk-php</code> on Packagist; coordinates may vary until GA.
+</Callout>
+
+[API reference](/api/generated/locksmith-public-api)

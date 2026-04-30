@@ -1,0 +1,40 @@
+---
+title: ".NET"
+sidebar_position: 11
+---
+
+import { Callout } from '@site/src/components/Callout'
+
+# .NET (`Locksmith.Sdk`)
+
+```bash
+dotnet add package Locksmith.Sdk
+```
+
+**.NET 8.0+**. Responses surface as **`JsonElement`** trees for the API’s camelCase JSON.
+
+## Quick start
+
+```csharp
+using System.Text.Json;
+using Locksmith;
+
+await using var client = new LocksmithClient(Environment.GetEnvironmentVariable("LOCKSMITH_API_KEY")!);
+
+JsonElement bundle = await client.SignInAsync("user@example.com", "secure-password");
+string access = bundle.GetProperty("accessToken").GetString()!;
+
+JsonElement user = await client.GetUserAsync(access);
+```
+
+## Local JWT verification
+
+```csharp
+var jwt = LocksmithClient.VerifyToken(accessToken, publicKeyPem);
+```
+
+<Callout variant="note" title="NuGet">
+  Package ID and publishing follow your release pipeline; install command matches the intended public ID.
+</Callout>
+
+[API reference](/api/generated/locksmith-public-api)

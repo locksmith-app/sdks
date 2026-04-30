@@ -1,0 +1,47 @@
+---
+title: Ruby
+sidebar_position: 5
+---
+
+# Ruby (`locksmith-ruby`)
+
+```bash
+gem install locksmith-ruby
+```
+
+Or in your Gemfile:
+
+```ruby
+gem 'locksmith-ruby'
+```
+
+## Quick start
+
+```ruby
+require 'locksmith'
+
+auth = Locksmith::Client.new(api_key: 'lsm_live_…')
+
+session = auth.sign_in(email: 'user@example.com', password: 'secure-password')
+puts session.access_token
+```
+
+## Core methods
+
+```ruby
+# Sign up
+session = auth.sign_up(email: '…', password: '…', meta: { plan: 'free' })
+
+# Refresh
+next_session = auth.refresh(session.refresh_token)
+
+# Sign out
+auth.sign_out(next_session.refresh_token)
+
+# Get user
+me = auth.get_user(session.access_token)
+```
+
+## Reference
+
+[RubyGems locksmith-ruby](https://rubygems.org/gems/locksmith-ruby)

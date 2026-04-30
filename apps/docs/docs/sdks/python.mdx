@@ -1,0 +1,54 @@
+---
+title: Python
+sidebar_position: 2
+---
+
+import { Callout } from '@site/src/components/Callout'
+
+# Python (`locksmith-py`)
+
+```bash
+pip install locksmith-py
+```
+
+## Quick start
+
+```python
+from locksmith import LocksmithClient
+
+auth = LocksmithClient(api_key="lsm_live_…")
+
+session = auth.sign_in(email="user@example.com", password="secure-password")
+print(session.access_token)
+```
+
+## Environment
+
+Environment is derived from the key prefix (`lsm_live_` = Production, `lsm_sbx_` = Sandbox).
+
+## Core methods
+
+```python
+# Sign up
+session = auth.sign_up(email="…", password="…", meta={"plan": "free"})
+
+# Refresh
+next_session = auth.refresh(session.refresh_token)
+
+# Sign out
+auth.sign_out(next_session.refresh_token)
+
+# Get current user
+me = auth.get_user(session.access_token)
+
+# Magic link
+auth.send_magic_link("user@example.com")
+
+# Password reset
+auth.send_password_reset("user@example.com")
+auth.update_password(token=reset_token, new_password="new-pass")
+```
+
+## Reference
+
+[locksmith-py on PyPI](https://pypi.org/project/locksmith-py/)

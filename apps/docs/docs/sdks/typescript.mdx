@@ -1,0 +1,92 @@
+---
+title: TypeScript & JavaScript
+sidebar_position: 1
+---
+
+import { SdkInstallTabs } from '@site/src/components/SdkInstallTabs'
+import { Callout } from '@site/src/components/Callout'
+
+# TypeScript (`@getlocksmith/sdk`)
+
+<SdkInstallTabs />
+
+Optional peers (only needed if you use the adapters):
+
+```bash
+npm install next @trpc/server
+```
+
+## Quick start
+
+```typescript
+import { LocksmithClient } from '@getlocksmith/sdk'
+
+const auth = new LocksmithClient({
+  apiKey: process.env.LOCKSMITH_API_KEY!, // lsm_live_… or lsm_sbx_…
+})
+
+const { user, accessToken, refreshToken, expiresIn } = await auth.signIn({
+  email: 'user@example.com',
+  password: 'secure-password',
+})
+```
+
+## Environment detection
+
+Environment is derived from the key prefix — `lsm_live_` = Production, `lsm_sbx_` = Sandbox. Never pass the environment separately.
+
+## Core methods
+
+```typescript
+// Sign up
+const session = await auth.signUp({ email, password, meta: { plan: 'free' } })
+
+// Refresh tokens
+const next = await auth.refresh(session.refreshToken)
+
+// Sign out (invalidates refresh token)
+await auth.signOut(next.refreshToken)
+
+// Get current user (hits /api/auth/me)
+const me = await auth.getUser(accessToken)
+
+// Verify locally (no network call — requires project public PEM)
+const payload = auth.verifyToken(accessToken, publicKeyPem)
+```
+
+## Magic link & password reset
+
+```typescript
+await auth.sendMagicLink('user@example.com')
+await auth.sendPasswordReset('user@example.com')
+await auth.updatePassword({ token: resetToken, newPassword: 'new-pass' })
+```
+
+## OAuth (social sign-in)
+
+```typescript
+const { authorizationUrl } = await auth.initiateOAuth({ provider: 'github' })
+// redirect user's browser to authorizationUrl, then on your backend:
+const tokens = await auth.exchangeOAuthCode(code)
+```
+
+## Next.js middleware adapter
+
+```typescript
+// middleware.ts
+import { createMiddleware } from '@getlocksmith/sdk/adapters/next'
+import { LocksmithClient } from '@getlocksmith/sdk'
+
+const auth = new LocksmithClient({ apiKey: process.env.LOCKSMITH_API_KEY! })
+export const middleware = createMiddleware(auth)
+
+export const config = { matcher: ['/api/protected/:path*'] }
+```
+
+<Callout variant="tip" title="Next.js BFF">
+  For cookie-based sessions and React UI components, use <a href="../frameworks/nextjs">@getlocksmith/nextjs</a> instead.
+</Callout>
+
+## Reference
+
+Full README and advanced usage: [npm @getlocksmith/sdk](https://www.npmjs.com/package/@getlocksmith/sdk)

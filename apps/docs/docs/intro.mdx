@@ -1,0 +1,33 @@
+---
+sidebar_position: 0
+title: Introduction
+slug: /
+---
+
+import { Callout } from '@site/src/components/Callout'
+
+# Locksmith
+
+**Auth in an afternoon.** Locksmith is a JWT authentication API for end-user apps.
+
+Use the **API** section for every endpoint, **SDKs** for language clients, and **Frameworks** for the Next.js integration (cookie BFF, React UI components).
+
+## How it works
+
+1. Create a project in the [dashboard](https://getlocksmith.dev) — you get two API keys: one for **Production** (`lsm_live_…`) and one for **Sandbox** (`lsm_sbx_…`).
+2. Call the REST API from your backend using the appropriate key. The environment is inferred from the key prefix — you never pass it separately.
+3. Issue RS256 JWTs to your end users. Verify them locally with your project's public key (no Locksmith call needed on every request).
+
+<Callout variant="warning" title="Never expose your API key">
+  Use <code>lsm_live_</code> / <code>lsm_sbx_</code> keys only on your **server**. Browser code should call **your** backend or a cookie-based BFF (see the Next.js framework guide).
+</Callout>
+
+## Quick links
+
+| | |
+|---|---|
+| [API reference](/api/generated/locksmith-public-api) | All endpoints with live try-it |
+| [TypeScript SDK](/sdks/typescript) | `@getlocksmith/sdk` |
+| [Next.js framework](/frameworks/nextjs) | `@getlocksmith/nextjs` — BFF, middleware, UI forms |
+| [Authentication guide](/guides/authentication) | JWT, environments, refresh flow |
+| [Webhooks guide](/guides/webhooks) | Event payloads, HMAC verification |

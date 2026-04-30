@@ -1,0 +1,33 @@
+---
+title: Webhooks
+sidebar_position: 2
+---
+
+import { Callout } from '@site/src/components/Callout'
+
+# Webhooks
+
+Configure webhooks in the **dashboard** (project-level; not per-environment). Locksmith delivers **HTTPS POST** requests with a JSON body when events occur in **Production** or **Sandbox** — each payload includes an `environment` field so you can filter.
+
+## Delivery format
+
+- **Headers:** `Content-Type: application/json`, `X-Locksmith-Event`, **`X-Locksmith-Signature`** (HMAC-SHA256 hex of the raw body using your webhook secret).
+- **Body:** `{ "event", "projectId", "environment", "timestamp", "data" }` (see OpenAPI schemas and dashboard).
+
+## Verifying signatures
+
+1. Read the **raw** request body as bytes/string (before JSON parse) when computing HMAC.
+2. Compute HMAC-SHA256 with the webhook **secret** from the dashboard.
+3. Compare the hex digest **in constant time** to `X-Locksmith-Signature`.
+
+<Callout variant="warning" title="Security">
+  Reject requests with missing or invalid signatures in production. Log failures without logging the secret or full payload in untrusted environments.
+</Callout>
+
+## Retries and debugging
+
+Delivery attempts and responses are stored in the dashboard (status code, response body) for troubleshooting. Design your endpoint to be **idempotent** where possible (use event id or composite keys in `data`).
+
+## Event types
+
+Examples: `user.created`, `user.login`, `user.logout`, `user.password_reset`, `session.revoked`, `security.replay_detected`. See your dashboard and the API product docs for the canonical list.
