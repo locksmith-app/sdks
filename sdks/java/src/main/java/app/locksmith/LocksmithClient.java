@@ -16,7 +16,7 @@ import java.security.interfaces.RSAPublicKey;
 import java.security.spec.X509EncodedKeySpec;
 import java.security.KeyFactory;
 import java.util.Base64;
-import java.util.Map;
+import java.util.List;
 
 /** Client for the public Locksmith <code>/api/auth/*</code> API. */
 public final class LocksmithClient implements AutoCloseable {
@@ -50,6 +50,46 @@ public final class LocksmithClient implements AutoCloseable {
   private String url(String path) {
     String p = path.startsWith("/") ? path : "/" + path;
     return baseUrl + p;
+  }
+
+  private JsonNode patch(String path, ObjectNode body) throws Exception {
+    String json = JSON.writeValueAsString(body);
+    var req = HttpRequest.newBuilder()
+        .uri(URI.create(url(path)))
+        .header("X-API-Key", apiKey)
+        .header("Content-Type", "application/json")
+        .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
+        .build();
+    return envelope(http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)));
+  }
+
+  private JsonNode put(String path, ObjectNode body) throws Exception {
+    String json = JSON.writeValueAsString(body);
+    var req = HttpRequest.newBuilder()
+        .uri(URI.create(url(path)))
+        .header("X-API-Key", apiKey)
+        .header("Content-Type", "application/json")
+        .PUT(HttpRequest.BodyPublishers.ofString(json))
+        .build();
+    return envelope(http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)));
+  }
+
+  private JsonNode deleteReq(String path) throws Exception {
+    var req = HttpRequest.newBuilder()
+        .uri(URI.create(url(path)))
+        .header("X-API-Key", apiKey)
+        .DELETE()
+        .build();
+    return envelope(http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)));
+  }
+
+  private JsonNode postEmpty(String path) throws Exception {
+    var req = HttpRequest.newBuilder()
+        .uri(URI.create(url(path)))
+        .header("X-API-Key", apiKey)
+        .POST(HttpRequest.BodyPublishers.noBody())
+        .build();
+    return envelope(http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)));
   }
 
   private JsonNode post(String path, ObjectNode body) throws Exception {
@@ -195,6 +235,136 @@ public final class LocksmithClient implements AutoCloseable {
       o.set("scopes", scopes);
     }
     return post("/api/auth/oidc/grant", o);
+  }
+
+  /** @return roles array JSON node */
+  public JsonNode listRoles() throws Exception {
+    return get("/api/auth/rbac/roles", Map.of()).get("roles");
+  }
+
+  public JsonNode getRole(String roleId) throws Exception {
+    String enc = java.net.URLEncoder.encode(roleId, StandardCharsets.UTF_8).replace("+", "%20");
+    return get("/api/auth/rbac/roles/" + enc, Map.of()).get("role");
+  }
+
+  public JsonNode createRole(String name, String description, String color, Boolean isDefault) throws Exception {
+    var o = JSON.createObjectNode().put("name", name);
+    if (description != null) {
+      o.put("description", description);
+    }
+    if (color != null) {
+      o.put("color", color);
+    }
+    if (isDefault != null) {
+      o.put("isDefault", isDefault);
+    }
+    return post("/api/auth/rbac/roles", o).get("role");
+  }
+
+  public JsonNode createRole(String name) throws Exception {
+    return createRole(name, null, null, null);
+  }
+
+  public JsonNode updateRole(String roleId, ObjectNode patch) throws Exception {
+    String enc = java.net.URLEncoder.encode(roleId, StandardCharsets.UTF_8).replace("+", "%20");
+    return patch("/api/auth/rbac/roles/" + enc, patch).get("role");
+  }
+
+  public void deleteRole(String roleId) throws Exception {
+    String enc = java.net.URLEncoder.encode(roleId, StandardCharsets.UTF_8).replace("+", "%20");
+    deleteReq("/api/auth/rbac/roles/" + enc);
+  }
+
+  public JsonNode setRolePermissions(String roleId, List<String> permissionIds) throws Exception {
+    String enc = java.net.URLEncoder.encode(roleId, StandardCharsets.UTF_8).replace("+", "%20");
+    var arr = JSON.createArrayNode();
+    for (String id : permissionIds) {
+      arr.add(id);
+    }
+    var o = JSON.createObjectNode().set("permissionIds", arr);
+    return put("/api/auth/rbac/roles/" + enc + "/permissions", o).get("role");
+  }
+
+  public JsonNode listPermissions() throws Exception {
+    return get("/api/auth/rbac/permissions", Map.of()).get("permissions");
+  }
+
+  public JsonNode getPermission(String permissionId) throws Exception {
+    String enc = java.net.URLEncoder.encode(permissionId, StandardCharsets.UTF_8).replace("+", "%20");
+    return get("/api/auth/rbac/permissions/" + enc, Map.of()).get("permission");
+  }
+
+  public JsonNode createPermission(String key, String name, String description, String category) throws Exception {
+    var o = JSON.createObjectNode().put("key", key).put("name", name);
+    if (description != null) {
+      o.put("description", description);
+    }
+    if (category != null) {
+      o.put("category", category);
+    }
+    return post("/api/auth/rbac/permissions", o).get("permission");
+  }
+
+  public JsonNode createPermission(String key, String name) throws Exception {
+    return createPermission(key, name, null, null);
+  }
+
+  public JsonNode updatePermission(String permissionId, ObjectNode patch) throws Exception {
+    String enc = java.net.URLEncoder.encode(permissionId, StandardCharsets.UTF_8).replace("+", "%20");
+    return patch("/api/auth/rbac/permissions/" + enc, patch).get("permission");
+  }
+
+  public void deletePermission(String permissionId) throws Exception {
+    String enc = java.net.URLEncoder.encode(permissionId, StandardCharsets.UTF_8).replace("+", "%20");
+    deleteReq("/api/auth/rbac/permissions/" + enc);
+  }
+
+  public JsonNode getUserRoles(String userId) throws Exception {
+    String enc = java.net.URLEncoder.encode(userId, StandardCharsets.UTF_8).replace("+", "%20");
+    return get("/api/auth/rbac/users/" + enc + "/roles", Map.of()).get("assignments");
+  }
+
+  public void assignRole(String userId, String roleId) throws Exception {
+    String u = java.net.URLEncoder.encode(userId, StandardCharsets.UTF_8).replace("+", "%20");
+    String r = java.net.URLEncoder.encode(roleId, StandardCharsets.UTF_8).replace("+", "%20");
+    postEmpty("/api/auth/rbac/users/" + u + "/roles/" + r);
+  }
+
+  public void revokeRole(String userId, String roleId) throws Exception {
+    String u = java.net.URLEncoder.encode(userId, StandardCharsets.UTF_8).replace("+", "%20");
+    String r = java.net.URLEncoder.encode(roleId, StandardCharsets.UTF_8).replace("+", "%20");
+    deleteReq("/api/auth/rbac/users/" + u + "/roles/" + r);
+  }
+
+  public JsonNode setUserRoles(String userId, List<String> roleIds) throws Exception {
+    String enc = java.net.URLEncoder.encode(userId, StandardCharsets.UTF_8).replace("+", "%20");
+    var arr = JSON.createArrayNode();
+    for (String id : roleIds) {
+      arr.add(id);
+    }
+    var o = JSON.createObjectNode().set("roleIds", arr);
+    return put("/api/auth/rbac/users/" + enc + "/roles", o).get("roles");
+  }
+
+  public static boolean tokenHasRole(DecodedJWT jwt, String role) {
+    var claim = jwt.getClaim("roles");
+    if (!claim.isNull()) {
+      List<String> list = claim.asList(String.class);
+      if (list != null && list.contains(role)) {
+        return true;
+      }
+    }
+    String legacy = jwt.getClaim("role").asString();
+    return role.equals(legacy);
+  }
+
+  public static boolean tokenHasPermission(DecodedJWT jwt, String permission) {
+    var claim = jwt.getClaim("permissions");
+    if (claim.isNull()) {
+      return false;
+    }
+    List<String> list = claim.asList(String.class);
+    return list != null && list.contains(permission);
   }
 
   @Override

@@ -13,6 +13,10 @@ export type UserMe = User & {
   emailVerified: boolean
   twoFactorEnabled?: boolean
   passkeyCount?: number
+  /** Live RBAC role names (refresh the session to update JWT claims). */
+  roles: string[]
+  /** Permission keys resolved from assigned roles. */
+  permissions: string[]
   createdAt: string
   lastLoginAt: string | null
 }
@@ -22,7 +26,12 @@ export type SignInUser = User & { lastLoginAt: string | null }
 export type TokenPayload = {
   sub: string
   email: string
+  /** Legacy single-role string */
   role: string
+  /** RBAC role names */
+  roles: string[]
+  /** Permission keys from assigned roles */
+  permissions: string[]
   environment: LocksmithEnvironment
   meta: Record<string, unknown>
   aud: string

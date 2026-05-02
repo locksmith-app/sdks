@@ -34,6 +34,10 @@ class UserWithTimestamps(UserDict):
 
 class UserMe(UserDict):
     emailVerified: bool
+    twoFactorEnabled: bool
+    passkeyCount: int
+    roles: list[str]
+    permissions: list[str]
     createdAt: str
     lastLoginAt: str | None
 
@@ -60,10 +64,33 @@ class MagicLinkVerifyResult(AuthTokens):
     user: UserWithTimestamps
 
 
+class Role(TypedDict):
+    id: str
+    name: str
+    description: str | None
+    color: str | None
+    isDefault: bool
+    isSystem: bool
+    createdAt: str
+    updatedAt: str
+
+
+class Permission(TypedDict):
+    id: str
+    key: str
+    name: str
+    description: str | None
+    category: str | None
+    createdAt: str
+    updatedAt: str
+
+
 class TokenPayload(TypedDict, total=False):
     sub: str
     email: str
-    role: str
+    role: str                  # legacy single-role string
+    roles: list[str]           # all RBAC role names
+    permissions: list[str]     # all permission keys resolved from roles
     environment: Environment
     meta: dict[str, Any]
     aud: str

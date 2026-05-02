@@ -13,6 +13,12 @@ export type UserWithTimestamps = User & {
 
 export type UserMe = User & {
   emailVerified: boolean
+  twoFactorEnabled: boolean
+  passkeyCount: number
+  /** Live RBAC role names from the database (refresh tokens to update JWT claims). */
+  roles: string[]
+  /** Permission keys resolved from assigned roles. */
+  permissions: string[]
   createdAt: string
   lastLoginAt: string | null
 }
@@ -21,17 +27,54 @@ export type SignInUser = User & {
   lastLoginAt: string | null
 }
 
+// ─── RBAC ─────────────────────────────────────────────────────────────────────
+
+export type Role = {
+  id:          string
+  name:        string
+  description: string | null
+  color:       string | null
+  isDefault:   boolean
+  isSystem:    boolean
+  createdAt:   string
+  updatedAt:   string
+}
+
+export type Permission = {
+  id:          string
+  key:         string
+  name:        string
+  description: string | null
+  category:    string | null
+  createdAt:   string
+  updatedAt:   string
+}
+
+export type RoleWithPermissions = Role & {
+  permissions: Array<{ permissionId: string; permission: Permission }>
+}
+
+export type UserRoleAssignment = {
+  role:       RoleWithPermissions
+  assignedAt: string
+}
+
 /** JWT access token payload (RS256), after verification */
 export type TokenPayload = {
-  sub: string
-  email: string
-  role: string
+  sub:         string
+  email:       string
+  /** Legacy single-role string — kept for backward compatibility */
+  role:        string
+  /** All RBAC role names assigned to this user */
+  roles:       string[]
+  /** All permission keys resolved from the user's roles */
+  permissions: string[]
   environment: LocksmithEnvironment
-  meta: Record<string, unknown>
-  aud: string
-  iss: string
-  iat: number
-  exp: number
+  meta:        Record<string, unknown>
+  aud:         string
+  iss:         string
+  iat:         number
+  exp:         number
 }
 
 export type AuthTokens = {

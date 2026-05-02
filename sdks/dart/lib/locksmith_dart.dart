@@ -148,4 +148,127 @@ class LocksmithClient {
     if (scopes != null && scopes.isNotEmpty) body['scopes'] = scopes;
     return _post('/api/auth/oidc/grant', body);
   }
+
+  Future<Map<String, dynamic>> _get(String path, {Map<String, String>? extraHeaders}) async {
+    final res = await http.get(_uri(path), headers: _headers(extra: extraHeaders));
+    return _parseEnvelope(res);
+  }
+
+  Future<Map<String, dynamic>> _patch(String path, Map<String, dynamic> body) async {
+    final res = await http.patch(
+      _uri(path),
+      headers: {..._headers(), 'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    return _parseEnvelope(res);
+  }
+
+  Future<Map<String, dynamic>> _put(String path, Map<String, dynamic> body) async {
+    final res = await http.put(
+      _uri(path),
+      headers: {..._headers(), 'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    return _parseEnvelope(res);
+  }
+
+  Future<Map<String, dynamic>> _delete(String path) async {
+    final res = await http.delete(_uri(path), headers: _headers());
+    return _parseEnvelope(res);
+  }
+
+  /// RBAC: list roles (nested permissions).
+  Future<List<dynamic>> listRoles() async {
+    final d = await _get('/api/auth/rbac/roles');
+    return d['roles'] as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getRole(String roleId) async {
+    final d = await _get('/api/auth/rbac/roles/${Uri.encodeComponent(roleId)}');
+    return d['role'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createRole(Map<String, dynamic> body) async {
+    final d = await _post('/api/auth/rbac/roles', body);
+    return d['role'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateRole(String roleId, Map<String, dynamic> patch) async {
+    final d = await _patch('/api/auth/rbac/roles/${Uri.encodeComponent(roleId)}', patch);
+    return d['role'] as Map<String, dynamic>;
+  }
+
+  Future<void> deleteRole(String roleId) async {
+    await _delete('/api/auth/rbac/roles/${Uri.encodeComponent(roleId)}');
+  }
+
+  Future<Map<String, dynamic>> setRolePermissions(String roleId, List<String> permissionIds) async {
+    final d = await _put('/api/auth/rbac/roles/${Uri.encodeComponent(roleId)}/permissions', {
+      'permissionIds': permissionIds,
+    });
+    return d['role'] as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> listPermissions() async {
+    final d = await _get('/api/auth/rbac/permissions');
+    return d['permissions'] as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getPermission(String permissionId) async {
+    final d = await _get('/api/auth/rbac/permissions/${Uri.encodeComponent(permissionId)}');
+    return d['permission'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createPermission(Map<String, dynamic> body) async {
+    final d = await _post('/api/auth/rbac/permissions', body);
+    return d['permission'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updatePermission(String permissionId, Map<String, dynamic> patch) async {
+    final d = await _patch('/api/auth/rbac/permissions/${Uri.encodeComponent(permissionId)}', patch);
+    return d['permission'] as Map<String, dynamic>;
+  }
+
+  Future<void> deletePermission(String permissionId) async {
+    await _delete('/api/auth/rbac/permissions/${Uri.encodeComponent(permissionId)}');
+  }
+
+  /// Returns assignment objects: `{ role, assignedAt }`.
+  Future<List<dynamic>> getUserRoles(String userId) async {
+    final d = await _get('/api/auth/rbac/users/${Uri.encodeComponent(userId)}/roles');
+    return d['assignments'] as List<dynamic>;
+  }
+
+  Future<void> assignRole(String userId, String roleId) async {
+    await _post(
+      '/api/auth/rbac/users/${Uri.encodeComponent(userId)}/roles/${Uri.encodeComponent(roleId)}',
+      {},
+    );
+  }
+
+  Future<void> revokeRole(String userId, String roleId) async {
+    await _delete(
+      '/api/auth/rbac/users/${Uri.encodeComponent(userId)}/roles/${Uri.encodeComponent(roleId)}',
+    );
+  }
+
+  Future<List<dynamic>> setUserRoles(String userId, List<String> roleIds) async {
+    final d = await _put('/api/auth/rbac/users/${Uri.encodeComponent(userId)}/roles', {
+      'roleIds': roleIds,
+    });
+    return d['roles'] as List<dynamic>;
+  }
+
+  /// Local check on a verified token payload map (from [verifyToken]).
+  static bool tokenHasRole(Map<String, dynamic> payload, String role) {
+    final r = payload['roles'];
+    if (r is List) return r.contains(role);
+    return false;
+  }
+
+  static bool tokenHasPermission(Map<String, dynamic> payload, String permission) {
+    final p = payload['permissions'];
+    if (p is List) return p.contains(permission);
+    return false;
+  }
 }

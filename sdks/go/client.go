@@ -33,9 +33,13 @@ type User struct {
 
 type UserMe struct {
 	User
-	EmailVerified bool    `json:"emailVerified"`
-	CreatedAt     string  `json:"createdAt"`
-	LastLoginAt   *string `json:"lastLoginAt"`
+	EmailVerified    bool     `json:"emailVerified"`
+	TwoFactorEnabled bool     `json:"twoFactorEnabled"`
+	PasskeyCount     int      `json:"passkeyCount"`
+	Roles            []string `json:"roles"`
+	Permissions      []string `json:"permissions"`
+	CreatedAt        string   `json:"createdAt"`
+	LastLoginAt      *string  `json:"lastLoginAt"`
 }
 
 // AuthTokens holds JWT access token, rotated refresh token, and access TTL seconds.
@@ -54,13 +58,58 @@ type apiErr struct {
 	Message string `json:"message"`
 }
 
+// Role is a named group of permissions defined for a project.
+type Role struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Color       string `json:"color"`
+	IsDefault   bool   `json:"isDefault"`
+	IsSystem    bool   `json:"isSystem"`
+	CreatedAt   string `json:"createdAt"`
+	UpdatedAt   string `json:"updatedAt"`
+}
+
+// Permission is a discrete capability key defined for a project.
+type Permission struct {
+	ID          string `json:"id"`
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+	CreatedAt   string `json:"createdAt"`
+	UpdatedAt   string `json:"updatedAt"`
+}
+
 // TokenPayload is a verified RS256 access token (local verification).
 type TokenPayload struct {
 	Email       string                 `json:"email"`
-	Role        string                 `json:"role"`
+	Role        string                 `json:"role"`        // legacy single-role string
+	Roles       []string               `json:"roles"`       // all RBAC role names
+	Permissions []string               `json:"permissions"` // resolved permission keys
 	Environment Environment            `json:"environment"`
 	Meta        map[string]interface{} `json:"meta"`
 	jwt.RegisteredClaims
+}
+
+// HasRole returns true if the token payload contains the given role name.
+func HasRole(t *TokenPayload, role string) bool {
+	for _, r := range t.Roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+// HasPermission returns true if the token payload contains the given permission key.
+func HasPermission(t *TokenPayload, permission string) bool {
+	for _, p := range t.Permissions {
+		if p == permission {
+			return true
+		}
+	}
+	return false
 }
 
 // LocksmithClient calls the public Locksmith REST API.
@@ -395,4 +444,182 @@ func (c *LocksmithClient) CompleteOidcGrant(requestToken string, approved bool, 
 		return nil, err
 	}
 	return &result, nil
+}
+
+// ── RBAC (public REST: X-API-Key + JSON bodies) ──────────────────────────────
+
+// RoleAssignment is one entry from GET .../rbac/users/:id/roles
+type RoleAssignment struct {
+	Role       map[string]interface{} `json:"role"`
+	AssignedAt string                 `json:"assignedAt"`
+}
+
+// ListRoles returns all project roles (with nested permissions).
+func (c *LocksmithClient) ListRoles() ([]map[string]interface{}, error) {
+	var out struct {
+		Roles []map[string]interface{} `json:"roles"`
+	}
+	if err := c.doJSON(http.MethodGet, "/api/auth/rbac/roles", nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Roles, nil
+}
+
+// GetRole fetches one role by id.
+func (c *LocksmithClient) GetRole(roleID string) (map[string]interface{}, error) {
+	var out struct {
+		Role map[string]interface{} `json:"role"`
+	}
+	path := "/api/auth/rbac/roles/" + url.PathEscape(roleID)
+	if err := c.doJSON(http.MethodGet, path, nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Role, nil
+}
+
+// CreateRole creates a role; body fields match the REST API.
+func (c *LocksmithClient) CreateRole(body map[string]interface{}) (map[string]interface{}, error) {
+	b, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Role map[string]interface{} `json:"role"`
+	}
+	if err := c.doJSON(http.MethodPost, "/api/auth/rbac/roles", strings.NewReader(string(b)), nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Role, nil
+}
+
+// UpdateRole PATCHes a role.
+func (c *LocksmithClient) UpdateRole(roleID string, patch map[string]interface{}) (map[string]interface{}, error) {
+	b, err := json.Marshal(patch)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Role map[string]interface{} `json:"role"`
+	}
+	path := "/api/auth/rbac/roles/" + url.PathEscape(roleID)
+	if err := c.doJSON(http.MethodPatch, path, strings.NewReader(string(b)), nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Role, nil
+}
+
+// DeleteRole removes a non-system role.
+func (c *LocksmithClient) DeleteRole(roleID string) error {
+	path := "/api/auth/rbac/roles/" + url.PathEscape(roleID)
+	return c.doJSON(http.MethodDelete, path, nil, nil, &struct{}{})
+}
+
+// SetRolePermissions replaces permission ids on a role.
+func (c *LocksmithClient) SetRolePermissions(roleID string, permissionIDs []string) (map[string]interface{}, error) {
+	b, _ := json.Marshal(map[string]interface{}{"permissionIds": permissionIDs})
+	var out struct {
+		Role map[string]interface{} `json:"role"`
+	}
+	path := fmt.Sprintf("/api/auth/rbac/roles/%s/permissions", url.PathEscape(roleID))
+	if err := c.doJSON(http.MethodPut, path, strings.NewReader(string(b)), nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Role, nil
+}
+
+// ListPermissions returns all permission definitions.
+func (c *LocksmithClient) ListPermissions() ([]map[string]interface{}, error) {
+	var out struct {
+		Permissions []map[string]interface{} `json:"permissions"`
+	}
+	if err := c.doJSON(http.MethodGet, "/api/auth/rbac/permissions", nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Permissions, nil
+}
+
+// GetPermission fetches one permission by id.
+func (c *LocksmithClient) GetPermission(permissionID string) (map[string]interface{}, error) {
+	var out struct {
+		Permission map[string]interface{} `json:"permission"`
+	}
+	path := "/api/auth/rbac/permissions/" + url.PathEscape(permissionID)
+	if err := c.doJSON(http.MethodGet, path, nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Permission, nil
+}
+
+// CreatePermission creates a permission key.
+func (c *LocksmithClient) CreatePermission(body map[string]interface{}) (map[string]interface{}, error) {
+	b, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Permission map[string]interface{} `json:"permission"`
+	}
+	if err := c.doJSON(http.MethodPost, "/api/auth/rbac/permissions", strings.NewReader(string(b)), nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Permission, nil
+}
+
+// UpdatePermission PATCHes a permission.
+func (c *LocksmithClient) UpdatePermission(permissionID string, patch map[string]interface{}) (map[string]interface{}, error) {
+	b, err := json.Marshal(patch)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Permission map[string]interface{} `json:"permission"`
+	}
+	path := "/api/auth/rbac/permissions/" + url.PathEscape(permissionID)
+	if err := c.doJSON(http.MethodPatch, path, strings.NewReader(string(b)), nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Permission, nil
+}
+
+// DeletePermission removes a permission.
+func (c *LocksmithClient) DeletePermission(permissionID string) error {
+	path := "/api/auth/rbac/permissions/" + url.PathEscape(permissionID)
+	return c.doJSON(http.MethodDelete, path, nil, nil, &struct{}{})
+}
+
+// GetUserRoles returns role assignments (with assignedAt) for a user.
+func (c *LocksmithClient) GetUserRoles(userID string) ([]RoleAssignment, error) {
+	var out struct {
+		Assignments []RoleAssignment `json:"assignments"`
+	}
+	path := fmt.Sprintf("/api/auth/rbac/users/%s/roles", url.PathEscape(userID))
+	if err := c.doJSON(http.MethodGet, path, nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Assignments, nil
+}
+
+// AssignRole adds one role to a user.
+func (c *LocksmithClient) AssignRole(userID, roleID string) error {
+	path := fmt.Sprintf("/api/auth/rbac/users/%s/roles/%s", url.PathEscape(userID), url.PathEscape(roleID))
+	return c.doJSON(http.MethodPost, path, nil, nil, &struct{}{})
+}
+
+// RevokeRole removes one role from a user.
+func (c *LocksmithClient) RevokeRole(userID, roleID string) error {
+	path := fmt.Sprintf("/api/auth/rbac/users/%s/roles/%s", url.PathEscape(userID), url.PathEscape(roleID))
+	return c.doJSON(http.MethodDelete, path, nil, nil, &struct{}{})
+}
+
+// SetUserRoles replaces all roles for a user.
+func (c *LocksmithClient) SetUserRoles(userID string, roleIDs []string) ([]map[string]interface{}, error) {
+	b, _ := json.Marshal(map[string]interface{}{"roleIds": roleIDs})
+	var out struct {
+		Roles []map[string]interface{} `json:"roles"`
+	}
+	path := fmt.Sprintf("/api/auth/rbac/users/%s/roles", url.PathEscape(userID))
+	if err := c.doJSON(http.MethodPut, path, strings.NewReader(string(b)), nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Roles, nil
 }

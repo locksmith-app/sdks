@@ -84,6 +84,34 @@ public final class LocksmithClient: @unchecked Sendable {
         return inner
     }
 
+    private func patch(path: String, body: [String: Any], withApiKey: Bool = true) async throws -> Any {
+        var req = URLRequest(url: fullURL(path: path))
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await send(req, withApiKey: withApiKey)
+    }
+
+    private func put(path: String, body: [String: Any], withApiKey: Bool = true) async throws -> Any {
+        var req = URLRequest(url: fullURL(path: path))
+        req.httpMethod = "PUT"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await send(req, withApiKey: withApiKey)
+    }
+
+    private func delete(path: String, withApiKey: Bool = true) async throws -> Any {
+        var req = URLRequest(url: fullURL(path: path))
+        req.httpMethod = "DELETE"
+        return try await send(req, withApiKey: withApiKey)
+    }
+
+    private func postEmpty(path: String, withApiKey: Bool = true) async throws -> Any {
+        var req = URLRequest(url: fullURL(path: path))
+        req.httpMethod = "POST"
+        return try await send(req, withApiKey: withApiKey)
+    }
+
     private func post(path: String, body: [String: Any], withApiKey: Bool = true) async throws -> Any {
         var req = URLRequest(url: fullURL(path: path))
         req.httpMethod = "POST"
@@ -190,5 +218,117 @@ public final class LocksmithClient: @unchecked Sendable {
         userId.map { body["userId"] = $0 }
         if let s = scopes, !s.isEmpty { body["scopes"] = s }
         return try await post(path: "/api/auth/oidc/grant", body: body) as! [String: Any]
+    }
+
+    private func encPath(_ s: String) -> String {
+        s.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? s
+    }
+
+    public func listRoles() async throws -> [Any] {
+        let inner = try await get(path: "/api/auth/rbac/roles") as! [String: Any]
+        return inner["roles"] as! [Any]
+    }
+
+    public func getRole(roleId: String) async throws -> [String: Any] {
+        let inner = try await get(path: "/api/auth/rbac/roles/\(encPath(roleId))") as! [String: Any]
+        return inner["role"] as! [String: Any]
+    }
+
+    public func createRole(
+        name: String,
+        description: String? = nil,
+        color: String? = nil,
+        isDefault: Bool? = nil
+    ) async throws -> [String: Any] {
+        var body: [String: Any] = ["name": name]
+        description.map { body["description"] = $0 }
+        color.map { body["color"] = $0 }
+        isDefault.map { body["isDefault"] = $0 }
+        let inner = try await post(path: "/api/auth/rbac/roles", body: body) as! [String: Any]
+        return inner["role"] as! [String: Any]
+    }
+
+    public func updateRole(roleId: String, patch: [String: Any]) async throws -> [String: Any] {
+        let inner = try await patch(path: "/api/auth/rbac/roles/\(encPath(roleId))", body: patch) as! [String: Any]
+        return inner["role"] as! [String: Any]
+    }
+
+    public func deleteRole(roleId: String) async throws {
+        _ = try await delete(path: "/api/auth/rbac/roles/\(encPath(roleId))")
+    }
+
+    public func setRolePermissions(roleId: String, permissionIds: [String]) async throws -> [String: Any] {
+        let inner = try await put(
+            path: "/api/auth/rbac/roles/\(encPath(roleId))/permissions",
+            body: ["permissionIds": permissionIds]
+        ) as! [String: Any]
+        return inner["role"] as! [String: Any]
+    }
+
+    public func listPermissions() async throws -> [Any] {
+        let inner = try await get(path: "/api/auth/rbac/permissions") as! [String: Any]
+        return inner["permissions"] as! [Any]
+    }
+
+    public func getPermission(permissionId: String) async throws -> [String: Any] {
+        let inner = try await get(path: "/api/auth/rbac/permissions/\(encPath(permissionId))") as! [String: Any]
+        return inner["permission"] as! [String: Any]
+    }
+
+    public func createPermission(
+        key: String,
+        name: String,
+        description: String? = nil,
+        category: String? = nil
+    ) async throws -> [String: Any] {
+        var body: [String: Any] = ["key": key, "name": name]
+        description.map { body["description"] = $0 }
+        category.map { body["category"] = $0 }
+        let inner = try await post(path: "/api/auth/rbac/permissions", body: body) as! [String: Any]
+        return inner["permission"] as! [String: Any]
+    }
+
+    public func updatePermission(permissionId: String, patch: [String: Any]) async throws -> [String: Any] {
+        let inner = try await patch(
+            path: "/api/auth/rbac/permissions/\(encPath(permissionId))",
+            body: patch
+        ) as! [String: Any]
+        return inner["permission"] as! [String: Any]
+    }
+
+    public func deletePermission(permissionId: String) async throws {
+        _ = try await delete(path: "/api/auth/rbac/permissions/\(encPath(permissionId))")
+    }
+
+    public func getUserRoles(userId: String) async throws -> [Any] {
+        let inner = try await get(path: "/api/auth/rbac/users/\(encPath(userId))/roles") as! [String: Any]
+        return inner["assignments"] as! [Any]
+    }
+
+    public func assignRole(userId: String, roleId: String) async throws {
+        _ = try await postEmpty(path: "/api/auth/rbac/users/\(encPath(userId))/roles/\(encPath(roleId))")
+    }
+
+    public func revokeRole(userId: String, roleId: String) async throws {
+        _ = try await delete(path: "/api/auth/rbac/users/\(encPath(userId))/roles/\(encPath(roleId))")
+    }
+
+    public func setUserRoles(userId: String, roleIds: [String]) async throws -> [Any] {
+        let inner = try await put(
+            path: "/api/auth/rbac/users/\(encPath(userId))/roles",
+            body: ["roleIds": roleIds]
+        ) as! [String: Any]
+        return inner["roles"] as! [Any]
+    }
+
+    public static func tokenHasRole(_ payload: [String: Any], role: String) -> Bool {
+        if let roles = payload["roles"] as? [String] {
+            return roles.contains(role)
+        }
+        return (payload["role"] as? String) == role
+    }
+
+    public static func tokenHasPermission(_ payload: [String: Any], permission: String) -> Bool {
+        (payload["permissions"] as? [String])?.contains(permission) ?? false
     }
 }

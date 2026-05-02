@@ -147,6 +147,136 @@ defmodule Locksmith.Client do
     post(c, "/api/auth/oidc/grant", body)
   end
 
+  def list_roles(%__MODULE__{} = c), do: get_plain(c, "/api/auth/rbac/roles")["roles"]
+
+  def get_role(%__MODULE__{} = c, role_id) do
+    get_plain(c, "/api/auth/rbac/roles/" <> path_seg(role_id))["role"]
+  end
+
+  def create_role(%__MODULE__{} = c, attrs) when is_map(attrs) do
+    post(c, "/api/auth/rbac/roles", attrs)["role"]
+  end
+
+  def update_role(%__MODULE__{} = c, role_id, patch) when is_map(patch) do
+    patch_json(c, "/api/auth/rbac/roles/" <> path_seg(role_id), patch)["role"]
+  end
+
+  def delete_role(%__MODULE__{} = c, role_id) do
+    _ = delete_req(c, "/api/auth/rbac/roles/" <> path_seg(role_id))
+    :ok
+  end
+
+  def set_role_permissions(%__MODULE__{} = c, role_id, permission_ids) when is_list(permission_ids) do
+    put_req(c, "/api/auth/rbac/roles/" <> path_seg(role_id) <> "/permissions", %{
+      "permissionIds" => permission_ids
+    })["role"]
+  end
+
+  def list_permissions(%__MODULE__{} = c), do: get_plain(c, "/api/auth/rbac/permissions")["permissions"]
+
+  def get_permission(%__MODULE__{} = c, permission_id) do
+    get_plain(c, "/api/auth/rbac/permissions/" <> path_seg(permission_id))["permission"]
+  end
+
+  def create_permission(%__MODULE__{} = c, attrs) when is_map(attrs) do
+    post(c, "/api/auth/rbac/permissions", attrs)["permission"]
+  end
+
+  def update_permission(%__MODULE__{} = c, permission_id, patch) when is_map(patch) do
+    patch_json(c, "/api/auth/rbac/permissions/" <> path_seg(permission_id), patch)["permission"]
+  end
+
+  def delete_permission(%__MODULE__{} = c, permission_id) do
+    _ = delete_req(c, "/api/auth/rbac/permissions/" <> path_seg(permission_id))
+    :ok
+  end
+
+  def get_user_roles(%__MODULE__{} = c, user_id) do
+    get_plain(c, "/api/auth/rbac/users/" <> path_seg(user_id) <> "/roles")["assignments"]
+  end
+
+  def assign_role(%__MODULE__{} = c, user_id, role_id) do
+    _ =
+      post_empty(c, "/api/auth/rbac/users/#{path_seg(user_id)}/roles/#{path_seg(role_id)}")
+
+    :ok
+  end
+
+  def revoke_role(%__MODULE__{} = c, user_id, role_id) do
+    _ =
+      delete_req(c, "/api/auth/rbac/users/#{path_seg(user_id)}/roles/#{path_seg(role_id)}")
+
+    :ok
+  end
+
+  def set_user_roles(%__MODULE__{} = c, user_id, role_ids) when is_list(role_ids) do
+    put_req(c, "/api/auth/rbac/users/" <> path_seg(user_id) <> "/roles", %{"roleIds" => role_ids})[
+      "roles"
+    ]
+  end
+
+  def token_has_role?(claims, role) when is_map(claims) do
+    case Map.get(claims, "roles") do
+      list when is_list(list) -> role in list
+      _ -> Map.get(claims, "role") == role
+    end
+  end
+
+  def token_has_permission?(claims, permission) when is_map(claims) do
+    case Map.get(claims, "permissions") do
+      list when is_list(list) -> permission in list
+      _ -> false
+    end
+  end
+
+  defp path_seg(s), do: URI.encode(to_string(s), &URI.char_unreserved?/1)
+
+  defp get_plain(c, path), do: get_with_headers(c, path, [])
+
+  defp patch_json(c, path, body) do
+    %__MODULE__{api_key: k, base_url: base} = c
+    url = base <> path
+
+    case Req.patch(url, json: body, headers: [{"x-api-key", k}]) do
+      {:ok, %{status: s} = resp} when s in 200..299 -> parse_body(resp.body)
+      {:ok, %{status: s, body: b}} -> api_error(s, b)
+      {:error, e} -> network_error(e)
+    end
+  end
+
+  defp put_req(c, path, body) do
+    %__MODULE__{api_key: k, base_url: base} = c
+    url = base <> path
+
+    case Req.put(url, json: body, headers: [{"x-api-key", k}]) do
+      {:ok, %{status: s} = resp} when s in 200..299 -> parse_body(resp.body)
+      {:ok, %{status: s, body: b}} -> api_error(s, b)
+      {:error, e} -> network_error(e)
+    end
+  end
+
+  defp delete_req(c, path) do
+    %__MODULE__{api_key: k, base_url: base} = c
+    url = base <> path
+
+    case Req.delete(url, headers: [{"x-api-key", k}]) do
+      {:ok, %{status: s} = resp} when s in 200..299 -> parse_body(resp.body)
+      {:ok, %{status: s, body: b}} -> api_error(s, b)
+      {:error, e} -> network_error(e)
+    end
+  end
+
+  defp post_empty(c, path) do
+    %__MODULE__{api_key: k, base_url: base} = c
+    url = base <> path
+
+    case Req.post(url, json: %{}, headers: [{"x-api-key", k}]) do
+      {:ok, %{status: s} = resp} when s in 200..299 -> parse_body(resp.body)
+      {:ok, %{status: s, body: b}} -> api_error(s, b)
+      {:error, e} -> network_error(e)
+    end
+  end
+
   defp put_user_id_opt(m, nil), do: m
   defp put_user_id_opt(m, v), do: Map.put(m, "userId", v)
 

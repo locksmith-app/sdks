@@ -78,6 +78,44 @@ public sealed class LocksmithClient : IDisposable
         return _baseUrl + p;
     }
 
+    private async Task<JsonElement> GetJsonAsync(string path, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, Url(path));
+        return await HttpEnvelopeAsync(req, ct).ConfigureAwait(false);
+    }
+
+    private async Task<JsonElement> PatchJsonAsync(string path, object body, CancellationToken ct)
+    {
+        var payload = JsonSerializer.Serialize(body, _json);
+        using var req = new HttpRequestMessage(HttpMethod.Patch, Url(path))
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json"),
+        };
+        return await HttpEnvelopeAsync(req, ct).ConfigureAwait(false);
+    }
+
+    private async Task<JsonElement> PutJsonAsync(string path, object body, CancellationToken ct)
+    {
+        var payload = JsonSerializer.Serialize(body, _json);
+        using var req = new HttpRequestMessage(HttpMethod.Put, Url(path))
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json"),
+        };
+        return await HttpEnvelopeAsync(req, ct).ConfigureAwait(false);
+    }
+
+    private async Task<JsonElement> PostEmptyAsync(string path, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, Url(path));
+        return await HttpEnvelopeAsync(req, ct).ConfigureAwait(false);
+    }
+
+    private async Task<JsonElement> DeleteJsonAsync(string path, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Delete, Url(path));
+        return await HttpEnvelopeAsync(req, ct).ConfigureAwait(false);
+    }
+
     private async Task<JsonElement> PostJsonAsync(string path, object body, CancellationToken ct)
     {
         var payload = JsonSerializer.Serialize(body, _json);
@@ -215,5 +253,184 @@ public sealed class LocksmithClient : IDisposable
         if (scopes is { Length: > 0 })
             dict["scopes"] = scopes;
         return PostJsonAsync("/api/auth/oidc/grant", dict, ct);
+    }
+
+    public async Task<JsonElement> ListRolesAsync(CancellationToken ct = default)
+    {
+        var data = await GetJsonAsync("/api/auth/rbac/roles", ct).ConfigureAwait(false);
+        return data.GetProperty("roles");
+    }
+
+    public async Task<JsonElement> GetRoleAsync(string roleId, CancellationToken ct = default)
+    {
+        var enc = Uri.EscapeDataString(roleId);
+        var data = await GetJsonAsync($"/api/auth/rbac/roles/{enc}", ct).ConfigureAwait(false);
+        return data.GetProperty("role");
+    }
+
+    public async Task<JsonElement> CreateRoleAsync(
+        string name,
+        string? description = null,
+        string? color = null,
+        bool? isDefault = null,
+        CancellationToken ct = default)
+    {
+        var dict = new Dictionary<string, object?> { ["name"] = name };
+        if (description != null)
+            dict["description"] = description;
+        if (color != null)
+            dict["color"] = color;
+        if (isDefault is not null)
+            dict["isDefault"] = isDefault;
+        var data = await PostJsonAsync("/api/auth/rbac/roles", dict, ct).ConfigureAwait(false);
+        return data.GetProperty("role");
+    }
+
+    public async Task<JsonElement> UpdateRoleAsync(string roleId, IReadOnlyDictionary<string, object?> patch, CancellationToken ct = default)
+    {
+        var enc = Uri.EscapeDataString(roleId);
+        var data = await PatchJsonAsync($"/api/auth/rbac/roles/{enc}", patch, ct).ConfigureAwait(false);
+        return data.GetProperty("role");
+    }
+
+    public async Task DeleteRoleAsync(string roleId, CancellationToken ct = default)
+    {
+        var enc = Uri.EscapeDataString(roleId);
+        _ = await DeleteJsonAsync($"/api/auth/rbac/roles/{enc}", ct).ConfigureAwait(false);
+    }
+
+    public async Task<JsonElement> SetRolePermissionsAsync(string roleId, string[] permissionIds, CancellationToken ct = default)
+    {
+        var enc = Uri.EscapeDataString(roleId);
+        var data = await PutJsonAsync(
+            $"/api/auth/rbac/roles/{enc}/permissions",
+            new { permissionIds },
+            ct).ConfigureAwait(false);
+        return data.GetProperty("role");
+    }
+
+    public async Task<JsonElement> ListPermissionsAsync(CancellationToken ct = default)
+    {
+        var data = await GetJsonAsync("/api/auth/rbac/permissions", ct).ConfigureAwait(false);
+        return data.GetProperty("permissions");
+    }
+
+    public async Task<JsonElement> GetPermissionAsync(string permissionId, CancellationToken ct = default)
+    {
+        var enc = Uri.EscapeDataString(permissionId);
+        var data = await GetJsonAsync($"/api/auth/rbac/permissions/{enc}", ct).ConfigureAwait(false);
+        return data.GetProperty("permission");
+    }
+
+    public async Task<JsonElement> CreatePermissionAsync(
+        string key,
+        string name,
+        string? description = null,
+        string? category = null,
+        CancellationToken ct = default)
+    {
+        var dict = new Dictionary<string, object?> { ["key"] = key, ["name"] = name };
+        if (description != null)
+            dict["description"] = description;
+        if (category != null)
+            dict["category"] = category;
+        var data = await PostJsonAsync("/api/auth/rbac/permissions", dict, ct).ConfigureAwait(false);
+        return data.GetProperty("permission");
+    }
+
+    public async Task<JsonElement> UpdatePermissionAsync(
+        string permissionId,
+        IReadOnlyDictionary<string, object?> patch,
+        CancellationToken ct = default)
+    {
+        var enc = Uri.EscapeDataString(permissionId);
+        var data = await PatchJsonAsync($"/api/auth/rbac/permissions/{enc}", patch, ct).ConfigureAwait(false);
+        return data.GetProperty("permission");
+    }
+
+    public async Task DeletePermissionAsync(string permissionId, CancellationToken ct = default)
+    {
+        var enc = Uri.EscapeDataString(permissionId);
+        _ = await DeleteJsonAsync($"/api/auth/rbac/permissions/{enc}", ct).ConfigureAwait(false);
+    }
+
+    public async Task<JsonElement> GetUserRolesAsync(string userId, CancellationToken ct = default)
+    {
+        var enc = Uri.EscapeDataString(userId);
+        var data = await GetJsonAsync($"/api/auth/rbac/users/{enc}/roles", ct).ConfigureAwait(false);
+        return data.GetProperty("assignments");
+    }
+
+    public async Task AssignRoleAsync(string userId, string roleId, CancellationToken ct = default)
+    {
+        var u = Uri.EscapeDataString(userId);
+        var r = Uri.EscapeDataString(roleId);
+        _ = await PostEmptyAsync($"/api/auth/rbac/users/{u}/roles/{r}", ct).ConfigureAwait(false);
+    }
+
+    public async Task RevokeRoleAsync(string userId, string roleId, CancellationToken ct = default)
+    {
+        var u = Uri.EscapeDataString(userId);
+        var r = Uri.EscapeDataString(roleId);
+        _ = await DeleteJsonAsync($"/api/auth/rbac/users/{u}/roles/{r}", ct).ConfigureAwait(false);
+    }
+
+    public async Task<JsonElement> SetUserRolesAsync(string userId, string[] roleIds, CancellationToken ct = default)
+    {
+        var enc = Uri.EscapeDataString(userId);
+        var data = await PutJsonAsync($"/api/auth/rbac/users/{enc}/roles", new { roleIds }, ct).ConfigureAwait(false);
+        return data.GetProperty("roles");
+    }
+
+    public static bool TokenHasRole(JwtSecurityToken token, string role)
+    {
+        foreach (var c in token.Claims.Where(x => x.Type is "roles" or "role"))
+        {
+            if (c.Type == "role" && c.Value == role)
+                return true;
+            if (c.Type != "roles")
+                continue;
+            if (c.Value == role)
+                return true;
+            if (c.Value.StartsWith("[", StringComparison.Ordinal))
+            {
+                try
+                {
+                    var arr = JsonSerializer.Deserialize<string[]>(c.Value);
+                    if (arr is { Length: > 0 } && arr.Contains(role))
+                        return true;
+                }
+                catch (JsonException)
+                {
+                    // ignore
+                }
+            }
+        }
+
+        return false;
+    }
+
+    public static bool TokenHasPermission(JwtSecurityToken token, string permission)
+    {
+        foreach (var c in token.Claims.Where(x => x.Type == "permissions"))
+        {
+            if (c.Value == permission)
+                return true;
+            if (c.Value.StartsWith("[", StringComparison.Ordinal))
+            {
+                try
+                {
+                    var arr = JsonSerializer.Deserialize<string[]>(c.Value);
+                    if (arr is { Length: > 0 } && arr.Contains(permission))
+                        return true;
+                }
+                catch (JsonException)
+                {
+                    // ignore
+                }
+            }
+        }
+
+        return false;
     }
 }

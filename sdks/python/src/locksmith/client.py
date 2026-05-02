@@ -10,13 +10,15 @@ from locksmith.types import (
     AuthTokens,
     Environment,
     MagicLinkVerifyResult,
+    Permission,
+    Role,
     SignInResult,
     SignUpResult,
     TokenPayload,
     UserMe,
     environment_from_api_key,
 )
-from typing import cast
+from typing import Any, cast
 
 
 class LocksmithClient:
@@ -167,3 +169,147 @@ class LocksmithClient:
         if scopes is not None:
             body["scopes"] = scopes
         return self._request_json("POST", "/api/auth/oidc/grant", json_body=body)
+
+    # ── RBAC: Roles ──────────────────────────────────────────────────────────
+
+    def list_roles(self) -> list[dict]:
+        return self._request_json("GET", "/api/auth/rbac/roles")["roles"]
+
+    def get_role(self, role_id: str) -> dict:
+        return self._request_json("GET", f"/api/auth/rbac/roles/{role_id}")["role"]
+
+    def create_role(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        color: str | None = None,
+        is_default: bool = False,
+    ) -> dict:
+        body: dict = {"name": name, "isDefault": is_default}
+        if description is not None:
+            body["description"] = description
+        if color is not None:
+            body["color"] = color
+        return self._request_json("POST", "/api/auth/rbac/roles", json_body=body)["role"]
+
+    def update_role(
+        self,
+        role_id: str,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        color: str | None = None,
+        is_default: bool | None = None,
+    ) -> dict:
+        patch: dict = {}
+        if name is not None:
+            patch["name"] = name
+        if description is not None:
+            patch["description"] = description
+        if color is not None:
+            patch["color"] = color
+        if is_default is not None:
+            patch["isDefault"] = is_default
+        return self._request_json("PATCH", f"/api/auth/rbac/roles/{role_id}", json_body=patch)["role"]
+
+    def delete_role(self, role_id: str) -> None:
+        self._request_json("DELETE", f"/api/auth/rbac/roles/{role_id}")
+
+    def set_role_permissions(self, role_id: str, permission_ids: list[str]) -> dict:
+        return self._request_json(
+            "PUT",
+            f"/api/auth/rbac/roles/{role_id}/permissions",
+            json_body={"permissionIds": permission_ids},
+        )["role"]
+
+    # ── RBAC: Permissions ────────────────────────────────────────────────────
+
+    def list_permissions(self) -> list[dict]:
+        return self._request_json("GET", "/api/auth/rbac/permissions")["permissions"]
+
+    def get_permission(self, permission_id: str) -> dict:
+        return self._request_json("GET", f"/api/auth/rbac/permissions/{permission_id}")["permission"]
+
+    def create_permission(
+        self,
+        *,
+        key: str,
+        name: str,
+        description: str | None = None,
+        category: str | None = None,
+    ) -> dict:
+        body: dict = {"key": key, "name": name}
+        if description is not None:
+            body["description"] = description
+        if category is not None:
+            body["category"] = category
+        return self._request_json("POST", "/api/auth/rbac/permissions", json_body=body)["permission"]
+
+    def update_permission(
+        self,
+        permission_id: str,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        category: str | None = None,
+    ) -> dict:
+        patch: dict = {}
+        if name is not None:
+            patch["name"] = name
+        if description is not None:
+            patch["description"] = description
+        if category is not None:
+            patch["category"] = category
+        return self._request_json(
+            "PATCH", f"/api/auth/rbac/permissions/{permission_id}", json_body=patch
+        )["permission"]
+
+    def delete_permission(self, permission_id: str) -> None:
+        self._request_json("DELETE", f"/api/auth/rbac/permissions/{permission_id}")
+
+    # ── RBAC: User-role assignment ───────────────────────────────────────────
+
+    def get_user_roles(self, user_id: str) -> list[dict]:
+        data = self._request_json("GET", f"/api/auth/rbac/users/{user_id}/roles")
+        raw = data.get("assignments")
+        if isinstance(raw, list):
+            return raw
+        # Older API shape
+        roles = data.get("roles")
+        if isinstance(roles, list):
+            return [{"role": r, "assignedAt": ""} for r in roles]
+        return []
+
+    def get_user_role_objects(self, user_id: str) -> list[dict[str, Any]]:
+        """Return only role objects (no assignedAt)."""
+        return [a["role"] for a in self.get_user_roles(user_id) if isinstance(a.get("role"), dict)]
+
+    def assign_role(self, user_id: str, role_id: str) -> None:
+        self._request_json(
+            "POST",
+            f"/api/auth/rbac/users/{user_id}/roles/{role_id}",
+            json_body={},
+        )
+
+    def revoke_role(self, user_id: str, role_id: str) -> None:
+        self._request_json("DELETE", f"/api/auth/rbac/users/{user_id}/roles/{role_id}")
+
+    def set_user_roles(self, user_id: str, role_ids: list[str]) -> list[dict]:
+        return self._request_json(
+            "PUT",
+            f"/api/auth/rbac/users/{user_id}/roles",
+            json_body={"roleIds": role_ids},
+        )["roles"]
+
+    # ── RBAC: Local token helpers ────────────────────────────────────────────
+
+    @staticmethod
+    def has_role(token: TokenPayload, role: str) -> bool:
+        """Return True if the decoded token payload includes the given role name."""
+        return role in (token.get("roles") or [])
+
+    @staticmethod
+    def has_permission(token: TokenPayload, permission: str) -> bool:
+        """Return True if the decoded token payload includes the given permission key."""
+        return permission in (token.get("permissions") or [])

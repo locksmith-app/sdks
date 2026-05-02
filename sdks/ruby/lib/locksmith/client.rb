@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "erb"
 require "json"
 require "net/http"
 require "uri"
@@ -92,7 +93,116 @@ module Locksmith
       post_json("/api/auth/oidc/grant", body)
     end
 
+    # ── RBAC ─────────────────────────────────────────────────────────────────
+
+    def list_roles
+      parse_envelope(request_json(:get, "/api/auth/rbac/roles", nil))["roles"]
+    end
+
+    def get_role(role_id)
+      parse_envelope(request_json(:get, "/api/auth/rbac/roles/#{path_esc(role_id)}", nil))["role"]
+    end
+
+    def create_role(name:, description: nil, color: nil, is_default: nil)
+      body = { "name" => name }
+      body["description"] = description unless description.nil?
+      body["color"] = color unless color.nil?
+      body["isDefault"] = is_default unless is_default.nil?
+      parse_envelope(request_json(:post, "/api/auth/rbac/roles", JSON.generate(body)))["role"]
+    end
+
+    def update_role(role_id, **patch)
+      body = {}
+      patch.each do |k, v|
+        key = k.to_s
+        key = "isDefault" if key == "is_default"
+        body[key] = v
+      end
+      path = "/api/auth/rbac/roles/#{path_esc(role_id)}"
+      parse_envelope(request_json(:patch, path, JSON.generate(body)))["role"]
+    end
+
+    def delete_role(role_id)
+      path = "/api/auth/rbac/roles/#{path_esc(role_id)}"
+      parse_envelope(request_json(:delete, path, nil))
+      nil
+    end
+
+    def set_role_permissions(role_id, permission_ids)
+      path = "/api/auth/rbac/roles/#{path_esc(role_id)}/permissions"
+      body = { "permissionIds" => permission_ids }
+      parse_envelope(request_json(:put, path, JSON.generate(body)))["role"]
+    end
+
+    def list_permissions
+      parse_envelope(request_json(:get, "/api/auth/rbac/permissions", nil))["permissions"]
+    end
+
+    def get_permission(permission_id)
+      path = "/api/auth/rbac/permissions/#{path_esc(permission_id)}"
+      parse_envelope(request_json(:get, path, nil))["permission"]
+    end
+
+    def create_permission(key:, name:, description: nil, category: nil)
+      body = { "key" => key, "name" => name }
+      body["description"] = description unless description.nil?
+      body["category"] = category unless category.nil?
+      parse_envelope(request_json(:post, "/api/auth/rbac/permissions", JSON.generate(body)))["permission"]
+    end
+
+    def update_permission(permission_id, **patch)
+      body = {}
+      patch.each { |k, v| body[k.to_s] = v }
+      path = "/api/auth/rbac/permissions/#{path_esc(permission_id)}"
+      parse_envelope(request_json(:patch, path, JSON.generate(body)))["permission"]
+    end
+
+    def delete_permission(permission_id)
+      path = "/api/auth/rbac/permissions/#{path_esc(permission_id)}"
+      parse_envelope(request_json(:delete, path, nil))
+      nil
+    end
+
+    def get_user_roles(user_id)
+      path = "/api/auth/rbac/users/#{path_esc(user_id)}/roles"
+      parse_envelope(request_json(:get, path, nil))["assignments"]
+    end
+
+    def assign_role(user_id, role_id)
+      path = "/api/auth/rbac/users/#{path_esc(user_id)}/roles/#{path_esc(role_id)}"
+      parse_envelope(request_json(:post, path, nil))
+      nil
+    end
+
+    def revoke_role(user_id, role_id)
+      path = "/api/auth/rbac/users/#{path_esc(user_id)}/roles/#{path_esc(role_id)}"
+      parse_envelope(request_json(:delete, path, nil))
+      nil
+    end
+
+    def set_user_roles(user_id, role_ids)
+      path = "/api/auth/rbac/users/#{path_esc(user_id)}/roles"
+      body = { "roleIds" => role_ids }
+      parse_envelope(request_json(:put, path, JSON.generate(body)))["roles"]
+    end
+
+    def self.token_has_role?(payload, role)
+      roles = payload["roles"]
+      return roles.include?(role) if roles.is_a?(Array)
+
+      payload["role"] == role
+    end
+
+    def self.token_has_permission?(payload, permission)
+      perms = payload["permissions"]
+      perms.is_a?(Array) && perms.include?(permission)
+    end
+
     private
+
+    def path_esc(seg)
+      ERB::Util.url_encode(seg.to_s).tr("+", "%20")
+    end
 
     def url(path)
       p = path.start_with?("/") ? path : "/#{path}"
@@ -108,6 +218,9 @@ module Locksmith
       klass = case method
               when :post then Net::HTTP::Post
               when :get then Net::HTTP::Get
+              when :patch then Net::HTTP::Patch
+              when :put then Net::HTTP::Put
+              when :delete then Net::HTTP::Delete
               else raise ArgumentError, method.to_s
               end
       req = klass.new(uri)

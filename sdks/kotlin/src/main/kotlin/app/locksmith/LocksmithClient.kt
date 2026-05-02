@@ -50,6 +50,23 @@ class LocksmithClient(
             val spec = X509EncodedKeySpec(Base64.getDecoder().decode(stripped))
             return KeyFactory.getInstance("RSA").generatePublic(spec) as RSAPublicKey
         }
+
+        fun tokenHasRole(jwt: com.auth0.jwt.interfaces.DecodedJWT, role: String): Boolean {
+            val claim = jwt.getClaim("roles")
+            if (!claim.isNull) {
+                val list = claim.asList(String::class.java)
+                if (list != null && list.contains(role)) return true
+            }
+            val legacy = jwt.getClaim("role").asString()
+            return role == legacy
+        }
+
+        fun tokenHasPermission(jwt: com.auth0.jwt.interfaces.DecodedJWT, permission: String): Boolean {
+            val claim = jwt.getClaim("permissions")
+            if (claim.isNull) return false
+            val list = claim.asList(String::class.java)
+            return list != null && list.contains(permission)
+        }
     }
 
     private fun url(path: String): String {
@@ -69,6 +86,40 @@ class LocksmithClient(
         }
         if (!root.has("data")) throw LocksmithException("invalid_response", "Expected { data }", sc)
         return root["data"]
+    }
+
+    private fun patch(path: String, node: ObjectNode): JsonNode {
+        val req = HttpRequest.newBuilder(URI.create(url(path)))
+            .header("X-API-Key", apiKey)
+            .header("Content-Type", "application/json")
+            .method("PATCH", HttpRequest.BodyPublishers.ofString(json.writeValueAsString(node)))
+            .build()
+        return envelope(http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)))
+    }
+
+    private fun put(path: String, node: ObjectNode): JsonNode {
+        val req = HttpRequest.newBuilder(URI.create(url(path)))
+            .header("X-API-Key", apiKey)
+            .header("Content-Type", "application/json")
+            .PUT(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(node)))
+            .build()
+        return envelope(http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)))
+    }
+
+    private fun deleteReq(path: String): JsonNode {
+        val req = HttpRequest.newBuilder(URI.create(url(path)))
+            .header("X-API-Key", apiKey)
+            .DELETE()
+            .build()
+        return envelope(http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)))
+    }
+
+    private fun postEmpty(path: String): JsonNode {
+        val req = HttpRequest.newBuilder(URI.create(url(path)))
+            .header("X-API-Key", apiKey)
+            .POST(HttpRequest.BodyPublishers.noBody())
+            .build()
+        return envelope(http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)))
     }
 
     private fun post(path: String, node: ObjectNode): JsonNode {
@@ -166,5 +217,99 @@ class LocksmithClient(
             o.replace("scopes", scopes)
         }
         return post("/api/auth/oidc/grant", o)
+    }
+
+    fun listRoles(): JsonNode = get("/api/auth/rbac/roles").get("roles")
+
+    fun getRole(roleId: String): JsonNode {
+        val enc = URLEncoder.encode(roleId, StandardCharsets.UTF_8).replace("+", "%20")
+        return get("/api/auth/rbac/roles/$enc").get("role")
+    }
+
+    fun createRole(
+        name: String,
+        description: String? = null,
+        color: String? = null,
+        isDefault: Boolean? = null,
+    ): JsonNode {
+        val o = json.createObjectNode().put("name", name)
+        description?.let { o.put("description", it) }
+        color?.let { o.put("color", it) }
+        isDefault?.let { o.put("isDefault", it) }
+        return post("/api/auth/rbac/roles", o).get("role")
+    }
+
+    fun updateRole(roleId: String, patch: ObjectNode): JsonNode {
+        val enc = URLEncoder.encode(roleId, StandardCharsets.UTF_8).replace("+", "%20")
+        return patch("/api/auth/rbac/roles/$enc", patch).get("role")
+    }
+
+    fun deleteRole(roleId: String) {
+        val enc = URLEncoder.encode(roleId, StandardCharsets.UTF_8).replace("+", "%20")
+        deleteReq("/api/auth/rbac/roles/$enc")
+    }
+
+    fun setRolePermissions(roleId: String, permissionIds: List<String>): JsonNode {
+        val enc = URLEncoder.encode(roleId, StandardCharsets.UTF_8).replace("+", "%20")
+        val arr = json.createArrayNode()
+        permissionIds.forEach { arr.add(it) }
+        val o = json.createObjectNode()
+        o.set("permissionIds", arr)
+        return put("/api/auth/rbac/roles/$enc/permissions", o).get("role")
+    }
+
+    fun listPermissions(): JsonNode = get("/api/auth/rbac/permissions").get("permissions")
+
+    fun getPermission(permissionId: String): JsonNode {
+        val enc = URLEncoder.encode(permissionId, StandardCharsets.UTF_8).replace("+", "%20")
+        return get("/api/auth/rbac/permissions/$enc").get("permission")
+    }
+
+    fun createPermission(
+        key: String,
+        name: String,
+        description: String? = null,
+        category: String? = null,
+    ): JsonNode {
+        val o = json.createObjectNode().put("key", key).put("name", name)
+        description?.let { o.put("description", it) }
+        category?.let { o.put("category", it) }
+        return post("/api/auth/rbac/permissions", o).get("permission")
+    }
+
+    fun updatePermission(permissionId: String, patch: ObjectNode): JsonNode {
+        val enc = URLEncoder.encode(permissionId, StandardCharsets.UTF_8).replace("+", "%20")
+        return patch("/api/auth/rbac/permissions/$enc", patch).get("permission")
+    }
+
+    fun deletePermission(permissionId: String) {
+        val enc = URLEncoder.encode(permissionId, StandardCharsets.UTF_8).replace("+", "%20")
+        deleteReq("/api/auth/rbac/permissions/$enc")
+    }
+
+    fun getUserRoles(userId: String): JsonNode {
+        val enc = URLEncoder.encode(userId, StandardCharsets.UTF_8).replace("+", "%20")
+        return get("/api/auth/rbac/users/$enc/roles").get("assignments")
+    }
+
+    fun assignRole(userId: String, roleId: String) {
+        val u = URLEncoder.encode(userId, StandardCharsets.UTF_8).replace("+", "%20")
+        val r = URLEncoder.encode(roleId, StandardCharsets.UTF_8).replace("+", "%20")
+        postEmpty("/api/auth/rbac/users/$u/roles/$r")
+    }
+
+    fun revokeRole(userId: String, roleId: String) {
+        val u = URLEncoder.encode(userId, StandardCharsets.UTF_8).replace("+", "%20")
+        val r = URLEncoder.encode(roleId, StandardCharsets.UTF_8).replace("+", "%20")
+        deleteReq("/api/auth/rbac/users/$u/roles/$r")
+    }
+
+    fun setUserRoles(userId: String, roleIds: List<String>): JsonNode {
+        val enc = URLEncoder.encode(userId, StandardCharsets.UTF_8).replace("+", "%20")
+        val arr = json.createArrayNode()
+        roleIds.forEach { arr.add(it) }
+        val o = json.createObjectNode()
+        o.set("roleIds", arr)
+        return put("/api/auth/rbac/users/$enc/roles", o).get("roles")
     }
 }

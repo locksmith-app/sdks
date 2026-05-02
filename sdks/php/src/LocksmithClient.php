@@ -159,6 +159,220 @@ final class LocksmithClient
         return $this->post('/api/auth/oidc/grant', $body);
     }
 
+    // ── RBAC: Roles ─────────────────────────────────────────────────────────────
+
+    /** @return list<array<string, mixed>> */
+    public function listRoles(): array
+    {
+        $data = $this->apiGet('/api/auth/rbac/roles');
+
+        /** @var list<array<string, mixed>> */
+        return $data['roles'];
+    }
+
+    /** @return array<string, mixed> */
+    public function getRole(string $roleId): array
+    {
+        $data = $this->apiGet('/api/auth/rbac/roles/' . rawurlencode($roleId));
+
+        /** @var array<string, mixed> */
+        return $data['role'];
+    }
+
+    /**
+     * @param array{name?: string, description?: string|null, color?: string|null, isDefault?: bool} $params
+     *
+     * @return array<string, mixed>
+     */
+    public function createRole(array $params): array
+    {
+        $data = $this->apiPostJson('/api/auth/rbac/roles', $params);
+
+        /** @var array<string, mixed> */
+        return $data['role'];
+    }
+
+    /**
+     * @param array{name?: string, description?: string|null, color?: string|null, isDefault?: bool} $patch
+     *
+     * @return array<string, mixed>
+     */
+    public function updateRole(string $roleId, array $patch): array
+    {
+        $data = $this->apiPatch('/api/auth/rbac/roles/' . rawurlencode($roleId), $patch);
+
+        /** @var array<string, mixed> */
+        return $data['role'];
+    }
+
+    public function deleteRole(string $roleId): void
+    {
+        $this->apiDelete('/api/auth/rbac/roles/' . rawurlencode($roleId));
+    }
+
+    /** @param list<string> $permissionIds */
+    public function setRolePermissions(string $roleId, array $permissionIds): array
+    {
+        $data = $this->apiPut(
+            '/api/auth/rbac/roles/' . rawurlencode($roleId) . '/permissions',
+            ['permissionIds' => $permissionIds],
+        );
+
+        /** @var array<string, mixed> */
+        return $data['role'];
+    }
+
+    // ── RBAC: Permissions ───────────────────────────────────────────────────────
+
+    /** @return list<array<string, mixed>> */
+    public function listPermissions(): array
+    {
+        $data = $this->apiGet('/api/auth/rbac/permissions');
+
+        /** @var list<array<string, mixed>> */
+        return $data['permissions'];
+    }
+
+    /** @return array<string, mixed> */
+    public function getPermission(string $permissionId): array
+    {
+        $data = $this->apiGet('/api/auth/rbac/permissions/' . rawurlencode($permissionId));
+
+        /** @var array<string, mixed> */
+        return $data['permission'];
+    }
+
+    /**
+     * @param array{key: string, name: string, description?: string, category?: string} $params
+     *
+     * @return array<string, mixed>
+     */
+    public function createPermission(array $params): array
+    {
+        $data = $this->apiPostJson('/api/auth/rbac/permissions', $params);
+
+        /** @var array<string, mixed> */
+        return $data['permission'];
+    }
+
+    /**
+     * @param array{name?: string, description?: string|null, category?: string|null} $patch
+     *
+     * @return array<string, mixed>
+     */
+    public function updatePermission(string $permissionId, array $patch): array
+    {
+        $data = $this->apiPatch('/api/auth/rbac/permissions/' . rawurlencode($permissionId), $patch);
+
+        /** @var array<string, mixed> */
+        return $data['permission'];
+    }
+
+    public function deletePermission(string $permissionId): void
+    {
+        $this->apiDelete('/api/auth/rbac/permissions/' . rawurlencode($permissionId));
+    }
+
+    // ── RBAC: User roles ────────────────────────────────────────────────────────
+
+    /** @return list<array<string, mixed>> */
+    public function getUserRoles(string $userId): array
+    {
+        $data = $this->apiGet('/api/auth/rbac/users/' . rawurlencode($userId) . '/roles');
+
+        /** @var list<array<string, mixed>> */
+        return $data['assignments'];
+    }
+
+    public function assignRole(string $userId, string $roleId): void
+    {
+        $path = '/api/auth/rbac/users/' . rawurlencode($userId) . '/roles/' . rawurlencode($roleId);
+        $this->apiPostEmpty($path);
+    }
+
+    public function revokeRole(string $userId, string $roleId): void
+    {
+        $path = '/api/auth/rbac/users/' . rawurlencode($userId) . '/roles/' . rawurlencode($roleId);
+        $this->apiDelete($path);
+    }
+
+    /** @param list<string> $roleIds */
+    public function setUserRoles(string $userId, array $roleIds): array
+    {
+        $data = $this->apiPut('/api/auth/rbac/users/' . rawurlencode($userId) . '/roles', ['roleIds' => $roleIds]);
+
+        /** @var list<array<string, mixed>> */
+        return $data['roles'];
+    }
+
+    /**
+     * @param array<string, mixed> $claims From verifyTokenLocal()
+     */
+    public static function tokenHasRole(array $claims, string $role): bool
+    {
+        $roles = $claims['roles'] ?? null;
+        if (\is_array($roles)) {
+            /** @var list<mixed> $roles */
+            return \in_array($role, $roles, true);
+        }
+
+        return ($claims['role'] ?? null) === $role;
+    }
+
+    /**
+     * @param array<string, mixed> $claims From verifyTokenLocal()
+     */
+    public static function tokenHasPermission(array $claims, string $permission): bool
+    {
+        $perms = $claims['permissions'] ?? null;
+
+        return \is_array($perms) && \in_array($permission, $perms, true);
+    }
+
+    /** @return array<string, mixed> */
+    private function apiGet(string $path): array
+    {
+        [$st, $raw] = $this->request('GET', $path, null);
+
+        return $this->parseBody($st, $raw);
+    }
+
+    /** @param array<string, mixed> $body */
+    private function apiPostJson(string $path, array $body): array
+    {
+        [$st, $raw] = $this->request('POST', $path, $body);
+
+        return $this->parseBody($st, $raw);
+    }
+
+    private function apiPostEmpty(string $path): void
+    {
+        [$st, $raw] = $this->request('POST', $path, null);
+        $this->parseBody($st, $raw);
+    }
+
+    /** @param array<string, mixed> $body */
+    private function apiPatch(string $path, array $body): array
+    {
+        [$st, $raw] = $this->request('PATCH', $path, $body);
+
+        return $this->parseBody($st, $raw);
+    }
+
+    /** @param array<string, mixed> $body */
+    private function apiPut(string $path, array $body): array
+    {
+        [$st, $raw] = $this->request('PUT', $path, $body);
+
+        return $this->parseBody($st, $raw);
+    }
+
+    private function apiDelete(string $path): void
+    {
+        [$st, $raw] = $this->request('DELETE', $path, null);
+        $this->parseBody($st, $raw);
+    }
+
     /** @param array<string, mixed> $body */
     private function post(string $path, array $body): array
     {

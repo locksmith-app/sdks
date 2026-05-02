@@ -7,10 +7,14 @@ import type {
   OAuthInitiateResult,
   OAuthTokenExchangeResult,
   OidcGrantResult,
+  Permission,
+  Role,
+  RoleWithPermissions,
   SignInResult,
   SignUpResult,
   TokenPayload,
   UserMe,
+  UserRoleAssignment,
 } from './types.js'
 
 const DEFAULT_BASE = 'https://getlocksmith.dev'
@@ -221,5 +225,167 @@ export class LocksmithClient {
         ...(params.scopes !== undefined ? { scopes: params.scopes } : {}),
       }),
     })
+  }
+
+  // ── RBAC: Roles ─────────────────────────────────────────────────────────────
+
+  /** List all roles defined for this project. */
+  async listRoles(): Promise<RoleWithPermissions[]> {
+    const data = await this.requestJson<{ roles: RoleWithPermissions[] }>('/api/auth/rbac/roles')
+    return data.roles
+  }
+
+  /** Get a single role with its permissions. */
+  async getRole(roleId: string): Promise<RoleWithPermissions> {
+    const data = await this.requestJson<{ role: RoleWithPermissions }>(`/api/auth/rbac/roles/${encodeURIComponent(roleId)}`)
+    return data.role
+  }
+
+  /** Create a new role. */
+  async createRole(params: {
+    name:        string
+    description?: string
+    color?:       string | null
+    isDefault?:   boolean
+  }): Promise<RoleWithPermissions> {
+    const data = await this.requestJson<{ role: RoleWithPermissions }>('/api/auth/rbac/roles', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    })
+    return data.role
+  }
+
+  /** Update a role's name, description, color, or default flag. */
+  async updateRole(roleId: string, patch: {
+    name?:        string
+    description?: string | null
+    color?:       string | null
+    isDefault?:   boolean
+  }): Promise<RoleWithPermissions> {
+    const data = await this.requestJson<{ role: RoleWithPermissions }>(`/api/auth/rbac/roles/${encodeURIComponent(roleId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    })
+    return data.role
+  }
+
+  /** Delete a role (not allowed for system roles). */
+  async deleteRole(roleId: string): Promise<void> {
+    await this.requestJson<{ success: true }>(`/api/auth/rbac/roles/${encodeURIComponent(roleId)}`, {
+      method: 'DELETE',
+    })
+  }
+
+  /** Replace the full permission set on a role. Pass an empty array to clear all permissions. */
+  async setRolePermissions(roleId: string, permissionIds: string[]): Promise<RoleWithPermissions> {
+    const data = await this.requestJson<{ role: RoleWithPermissions }>(
+      `/api/auth/rbac/roles/${encodeURIComponent(roleId)}/permissions`,
+      { method: 'PUT', body: JSON.stringify({ permissionIds }) },
+    )
+    return data.role
+  }
+
+  // ── RBAC: Permissions ────────────────────────────────────────────────────────
+
+  /** List all permissions defined for this project. */
+  async listPermissions(): Promise<Permission[]> {
+    const data = await this.requestJson<{ permissions: Permission[] }>('/api/auth/rbac/permissions')
+    return data.permissions
+  }
+
+  /** Fetch a single permission by id. */
+  async getPermission(permissionId: string): Promise<Permission> {
+    const data = await this.requestJson<{ permission: Permission }>(
+      `/api/auth/rbac/permissions/${encodeURIComponent(permissionId)}`,
+    )
+    return data.permission
+  }
+
+  /** Create a new permission key. */
+  async createPermission(params: {
+    key:          string
+    name:         string
+    description?: string
+    category?:    string
+  }): Promise<Permission> {
+    const data = await this.requestJson<{ permission: Permission }>('/api/auth/rbac/permissions', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    })
+    return data.permission
+  }
+
+  /** Update a permission's display name, description, or category. */
+  async updatePermission(permissionId: string, patch: {
+    name?:        string
+    description?: string | null
+    category?:    string | null
+  }): Promise<Permission> {
+    const data = await this.requestJson<{ permission: Permission }>(
+      `/api/auth/rbac/permissions/${encodeURIComponent(permissionId)}`,
+      { method: 'PATCH', body: JSON.stringify(patch) },
+    )
+    return data.permission
+  }
+
+  /** Delete a permission (also removes it from all roles). */
+  async deletePermission(permissionId: string): Promise<void> {
+    await this.requestJson<{ success: true }>(
+      `/api/auth/rbac/permissions/${encodeURIComponent(permissionId)}`,
+      { method: 'DELETE' },
+    )
+  }
+
+  // ── RBAC: User-role assignment ───────────────────────────────────────────────
+
+  /** All roles Assignment for this user in the current environment (includes assignedAt). */
+  async getUserRoles(userId: string): Promise<UserRoleAssignment[]> {
+    const data = await this.requestJson<{ assignments: UserRoleAssignment[] }>(
+      `/api/auth/rbac/users/${encodeURIComponent(userId)}/roles`,
+    )
+    return data.assignments
+  }
+
+  /** Assign a single role to a user. */
+  async assignRole(userId: string, roleId: string): Promise<void> {
+    await this.requestJson<{ success: true }>(
+      `/api/auth/rbac/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`,
+      { method: 'POST' },
+    )
+  }
+
+  /** Revoke a single role from a user. */
+  async revokeRole(userId: string, roleId: string): Promise<void> {
+    await this.requestJson<{ success: true }>(
+      `/api/auth/rbac/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`,
+      { method: 'DELETE' },
+    )
+  }
+
+  /** Replace all roles for a user. Pass an empty array to remove all roles. */
+  async setUserRoles(userId: string, roleIds: string[]): Promise<Role[]> {
+    const data = await this.requestJson<{ roles: Role[] }>(
+      `/api/auth/rbac/users/${encodeURIComponent(userId)}/roles`,
+      { method: 'PUT', body: JSON.stringify({ roleIds }) },
+    )
+    return data.roles
+  }
+
+  // ── RBAC: Local token helpers ────────────────────────────────────────────────
+
+  /**
+   * Returns true if the decoded token payload includes the given role name.
+   * Use after `verifyToken()` — no network call required.
+   */
+  static hasRole(token: TokenPayload, role: string): boolean {
+    return token.roles.includes(role)
+  }
+
+  /**
+   * Returns true if the decoded token payload includes the given permission key.
+   * Use after `verifyToken()` — no network call required.
+   */
+  static hasPermission(token: TokenPayload, permission: string): boolean {
+    return token.permissions.includes(permission)
   }
 }

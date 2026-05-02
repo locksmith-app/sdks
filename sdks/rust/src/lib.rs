@@ -74,6 +74,10 @@ pub struct UserMe {
     #[serde(flatten)]
     pub base: UserBase,
     pub email_verified: bool,
+    pub two_factor_enabled: bool,
+    pub passkey_count: i64,
+    pub roles: Vec<String>,
+    pub permissions: Vec<String>,
     pub created_at: String,
     pub last_login_at: Option<String>,
 }
@@ -148,12 +152,24 @@ pub struct TokenPayload {
     pub sub: String,
     pub email: String,
     pub role: String,
+    #[serde(default)]
+    pub roles: Vec<String>,
+    #[serde(default)]
+    pub permissions: Vec<String>,
     pub environment: Environment,
     pub meta: HashMap<String, serde_json::Value>,
     pub aud: String,
     pub iss: String,
     pub iat: i64,
     pub exp: i64,
+}
+
+pub fn token_has_role(t: &TokenPayload, role: &str) -> bool {
+    t.roles.iter().any(|r| r == role)
+}
+
+pub fn token_has_permission(t: &TokenPayload, permission: &str) -> bool {
+    t.permissions.iter().any(|p| p == permission)
 }
 
 #[derive(Deserialize)]
@@ -425,5 +441,221 @@ impl LocksmithClient {
             None,
         )
         .await
+    }
+
+    // ── RBAC (X-API-Key) ───────────────────────────────────────────────────
+
+    pub async fn rbac_list_roles(&self) -> Result<Vec<serde_json::Value>> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct W {
+            roles: Vec<serde_json::Value>,
+        }
+        let w: W = self
+            .request_json(reqwest::Method::GET, "/api/auth/rbac/roles", None, None)
+            .await?;
+        Ok(w.roles)
+    }
+
+    pub async fn rbac_get_role(&self, role_id: &str) -> Result<serde_json::Value> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct W {
+            role: serde_json::Value,
+        }
+        let path = format!("/api/auth/rbac/roles/{}", urlencoding::encode(role_id));
+        let w: W = self.request_json(reqwest::Method::GET, &path, None, None).await?;
+        Ok(w.role)
+    }
+
+    pub async fn rbac_create_role(&self, body: serde_json::Value) -> Result<serde_json::Value> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct W {
+            role: serde_json::Value,
+        }
+        let w: W = self
+            .request_json(reqwest::Method::POST, "/api/auth/rbac/roles", Some(body), None)
+            .await?;
+        Ok(w.role)
+    }
+
+    pub async fn rbac_update_role(
+        &self,
+        role_id: &str,
+        patch: serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct W {
+            role: serde_json::Value,
+        }
+        let path = format!("/api/auth/rbac/roles/{}", urlencoding::encode(role_id));
+        let w: W = self
+            .request_json(reqwest::Method::PATCH, &path, Some(patch), None)
+            .await?;
+        Ok(w.role)
+    }
+
+    pub async fn rbac_delete_role(&self, role_id: &str) -> Result<()> {
+        let path = format!("/api/auth/rbac/roles/{}", urlencoding::encode(role_id));
+        let _v: serde_json::Value = self
+            .request_json(reqwest::Method::DELETE, &path, None, None)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn rbac_set_role_permissions(
+        &self,
+        role_id: &str,
+        permission_ids: Vec<String>,
+    ) -> Result<serde_json::Value> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct W {
+            role: serde_json::Value,
+        }
+        let path = format!(
+            "/api/auth/rbac/roles/{}/permissions",
+            urlencoding::encode(role_id)
+        );
+        let body = serde_json::json!({ "permissionIds": permission_ids });
+        let w: W = self
+            .request_json(reqwest::Method::PUT, &path, Some(body), None)
+            .await?;
+        Ok(w.role)
+    }
+
+    pub async fn rbac_list_permissions(&self) -> Result<Vec<serde_json::Value>> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct W {
+            permissions: Vec<serde_json::Value>,
+        }
+        let w: W = self
+            .request_json(reqwest::Method::GET, "/api/auth/rbac/permissions", None, None)
+            .await?;
+        Ok(w.permissions)
+    }
+
+    pub async fn rbac_get_permission(&self, permission_id: &str) -> Result<serde_json::Value> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct W {
+            permission: serde_json::Value,
+        }
+        let path = format!(
+            "/api/auth/rbac/permissions/{}",
+            urlencoding::encode(permission_id)
+        );
+        let w: W = self.request_json(reqwest::Method::GET, &path, None, None).await?;
+        Ok(w.permission)
+    }
+
+    pub async fn rbac_create_permission(&self, body: serde_json::Value) -> Result<serde_json::Value> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct W {
+            permission: serde_json::Value,
+        }
+        let w: W = self
+            .request_json(
+                reqwest::Method::POST,
+                "/api/auth/rbac/permissions",
+                Some(body),
+                None,
+            )
+            .await?;
+        Ok(w.permission)
+    }
+
+    pub async fn rbac_update_permission(
+        &self,
+        permission_id: &str,
+        patch: serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct W {
+            permission: serde_json::Value,
+        }
+        let path = format!(
+            "/api/auth/rbac/permissions/{}",
+            urlencoding::encode(permission_id)
+        );
+        let w: W = self
+            .request_json(reqwest::Method::PATCH, &path, Some(patch), None)
+            .await?;
+        Ok(w.permission)
+    }
+
+    pub async fn rbac_delete_permission(&self, permission_id: &str) -> Result<()> {
+        let path = format!(
+            "/api/auth/rbac/permissions/{}",
+            urlencoding::encode(permission_id)
+        );
+        let _v: serde_json::Value = self
+            .request_json(reqwest::Method::DELETE, &path, None, None)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn rbac_get_user_roles(&self, user_id: &str) -> Result<Vec<serde_json::Value>> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct W {
+            assignments: Vec<serde_json::Value>,
+        }
+        let path = format!(
+            "/api/auth/rbac/users/{}/roles",
+            urlencoding::encode(user_id)
+        );
+        let w: W = self.request_json(reqwest::Method::GET, &path, None, None).await?;
+        Ok(w.assignments)
+    }
+
+    pub async fn rbac_assign_role(&self, user_id: &str, role_id: &str) -> Result<()> {
+        let path = format!(
+            "/api/auth/rbac/users/{}/roles/{}",
+            urlencoding::encode(user_id),
+            urlencoding::encode(role_id)
+        );
+        let _v: serde_json::Value = self
+            .request_json(reqwest::Method::POST, &path, None, None)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn rbac_revoke_role(&self, user_id: &str, role_id: &str) -> Result<()> {
+        let path = format!(
+            "/api/auth/rbac/users/{}/roles/{}",
+            urlencoding::encode(user_id),
+            urlencoding::encode(role_id)
+        );
+        let _v: serde_json::Value = self
+            .request_json(reqwest::Method::DELETE, &path, None, None)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn rbac_set_user_roles(
+        &self,
+        user_id: &str,
+        role_ids: Vec<String>,
+    ) -> Result<Vec<serde_json::Value>> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct W {
+            roles: Vec<serde_json::Value>,
+        }
+        let path = format!(
+            "/api/auth/rbac/users/{}/roles",
+            urlencoding::encode(user_id)
+        );
+        let body = serde_json::json!({ "roleIds": role_ids });
+        let w: W = self
+            .request_json(reqwest::Method::PUT, &path, Some(body), None)
+            .await?;
+        Ok(w.roles)
     }
 }
